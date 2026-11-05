@@ -1,7 +1,9 @@
 import { CheckCircle2, CircleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export default function Toast({ toast, onDismiss }) {
+  const { t } = useTranslation()
   const [closingId, setClosingId] = useState(null)
   const duration = 3200
   const isClosing = toast ? closingId === toast.id : false
@@ -35,9 +37,9 @@ export default function Toast({ toast, onDismiss }) {
         </div>
       </div>
       <button
-        onClick={() => { setIsClosing(true); setTimeout(onDismiss, 200) }}
+        onClick={() => { setClosingId(toast.id); setTimeout(onDismiss, 200) }}
         className="text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors focus-ring rounded p-1 -mt-1 -mr-1"
-        aria-label="Dismiss notification"
+        aria-label={t('ui.dismissNotification')}
       >
         <X size={16} />
       </button>

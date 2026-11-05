@@ -4,6 +4,7 @@ export default function Badge({ children, tone = 'neutral', className = '', roun
     medium: 'bg-amber-100 text-amber-500',
     low: 'bg-leaf-100 border border-leaf-400/20 text-forest-700',
     success: 'bg-leaf-100 border border-leaf-400/20 text-forest-700',
+    error: 'bg-clay-100 border border-clay-400/20 text-clay-700',
     neutral: 'bg-ink-100 text-ink-700',
     info: 'bg-sand-100 text-ink-700 border border-ink-200',
   }

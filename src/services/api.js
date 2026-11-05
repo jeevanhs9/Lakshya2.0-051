@@ -7,26 +7,51 @@ import { orders as seedOrders, ORDER_STAGES } from '../data/orders'
 import { getForecast as getMockForecast, topCrops } from '../data/insights'
 import { demoUsers } from '../data/users'
 
-const API_BASE = '/api'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
+
+export class ApiError extends Error {
+  constructor(message, status = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
 
 async function request(endpoint, options = {}) {
+  let res
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      signal: options.signal || AbortSignal.timeout(10000),
       headers: {
         'Content-Type': 'application/json',
+        // Lets API/AI endpoints return natural-language content in the selected
+        // farmer language without changing identifiers or payload fields.
+        'Accept-Language': window.localStorage.getItem('farmlink-language') || 'en',
         ...(options.headers || {})
-      },
-      ...options
+      }
     })
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
-      throw new Error(errData.error || `HTTP ${res.status}`)
-    }
-    return await res.json()
   } catch {
-    // Return null so calling service can seamlessly execute fallback logic
+    // Network failure is distinct from an API rejection. Read services may
+    // still show demo data offline; write services must fail visibly.
     return null
   }
+
+  const responseData = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new ApiError(responseData?.error || `API request failed (${res.status}).`, res.status)
+  }
+  if (responseData === null) {
+    throw new ApiError('The API returned an invalid JSON response.', res.status)
+  }
+  return responseData
+}
+
+function requireBackendResponse(response, operation) {
+  if (!response) {
+    throw new ApiError(`The backend is unavailable. ${operation} was not saved.`)
+  }
+  return response
 }
 
 // ----------------- AUTH SERVICE -----------------
@@ -60,9 +85,9 @@ export const productService = {
 
     const apiRes = await request(`/products?${params.toString()}`)
     if (apiRes && apiRes.products) {
-      return apiRes.products
+      return { items: apiRes.products, source: 'backend' }
     }
-    return seedProducts
+    return { items: seedProducts, source: 'demo' }
   },
 
   async get(id) {
@@ -72,35 +97,27 @@ export const productService = {
   },
 
   async create(listing) {
-    const apiRes = await request('/products', {
+    const apiRes = requireBackendResponse(await request('/products', {
       method: 'POST',
       body: JSON.stringify(listing)
-    })
+    }), 'The listing')
     if (apiRes && apiRes.product) return apiRes.product
-
-    // Local fallback
-    const newId = `p${Date.now() % 10000}`
-    return {
-      id: newId,
-      rating: 4.7,
-      reviews: 1,
-      isActive: true,
-      ...listing,
-    }
+    throw new ApiError('The backend did not return the saved listing.')
   },
 
   async update(id, updates) {
-    const apiRes = await request(`/products/${id}`, {
+    const apiRes = requireBackendResponse(await request(`/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates)
-    })
+    }), 'The listing update')
     if (apiRes && apiRes.product) return apiRes.product
-    return { id, ...updates }
+    throw new ApiError('The backend did not return the updated listing.')
   },
 
   async delete(id) {
-    const apiRes = await request(`/products/${id}`, { method: 'DELETE' })
-    return apiRes ? apiRes.success : true
+    const apiRes = requireBackendResponse(await request(`/products/${id}`, { method: 'DELETE' }), 'The listing change')
+    if (apiRes.success) return true
+    throw new ApiError('The backend did not confirm the listing change.')
   }
 }
 
@@ -115,35 +132,35 @@ export const orderService = {
     if (filters.stage) params.set('stage', filters.stage)
 
     const apiRes = await request(`/orders?${params.toString()}`)
-    if (apiRes && apiRes.orders) return apiRes.orders
-    return seedOrders
+    if (apiRes && apiRes.orders) return { items: apiRes.orders, source: 'backend' }
+    return { items: seedOrders, source: 'demo' }
   },
 
   async placeOrder(payload) {
-    const apiRes = await request('/orders', {
+    const apiRes = requireBackendResponse(await request('/orders', {
       method: 'POST',
       body: JSON.stringify(payload)
-    })
+    }), 'The order')
     if (apiRes && apiRes.orders) return apiRes.orders
-    return null
+    throw new ApiError('The backend did not return the saved orders.')
   },
 
   async advanceStage(orderId, nextStage = null) {
-    const apiRes = await request(`/orders/${orderId}/stage`, {
+    const apiRes = requireBackendResponse(await request(`/orders/${orderId}/stage`, {
       method: 'PATCH',
       body: JSON.stringify(nextStage ? { stage: nextStage } : {})
-    })
+    }), 'The order status change')
     if (apiRes && apiRes.order) return apiRes.order
-    return null
+    throw new ApiError('The backend did not return the updated order.')
   },
 
   async cancelOrder(orderId, reason = 'Buyer cancellation request') {
-    const apiRes = await request(`/orders/${orderId}/cancel`, {
+    const apiRes = requireBackendResponse(await request(`/orders/${orderId}/cancel`, {
       method: 'POST',
       body: JSON.stringify({ reason })
-    })
+    }), 'The order cancellation')
     if (apiRes && apiRes.order) return apiRes
-    return null
+    throw new ApiError('The backend did not return the cancelled order.')
   }
 }
 
@@ -183,21 +200,62 @@ export const poolingService = {
   },
 
   async confirmPool(payload) {
-    const apiRes = await request('/pooling/confirm', {
+    const apiRes = requireBackendResponse(await request('/pooling/confirm', {
       method: 'POST',
       body: JSON.stringify(payload)
-    })
+    }), 'The pooled shipment')
     if (apiRes && apiRes.shipment) return apiRes.shipment
+    throw new ApiError('The backend did not return the saved shipment.')
+  }
+}
 
-    // Fallback confirmation
-    return {
-      id: `SHP-${Date.now() % 10000}`,
-      status: 'Confirmed',
-      vehicleName: payload.vehicleName || 'Tata 407',
-      estimatedSavings: 1350.0,
-      savingsPct: 28.1,
-      pooledOrdersCount: (payload.itemIds || []).length,
-    }
+// ----------------- SHIPMENT FULFILLMENT SERVICE -----------------
+export const shipmentService = {
+  async list() {
+    const apiRes = await request('/shipments')
+    if (apiRes && apiRes.shipments) return { items: apiRes.shipments, source: 'backend' }
+    return { items: [], source: 'offline' }
+  },
+
+  async createFromOrders(orderIds) {
+    const apiRes = requireBackendResponse(await request('/shipments', {
+      method: 'POST',
+      body: JSON.stringify({ orderIds })
+    }), 'The shipment')
+    if (apiRes && apiRes.shipment) return apiRes.shipment
+    throw new ApiError('The backend did not return the created shipment.')
+  },
+
+  async advanceStage(shipmentId, status) {
+    const apiRes = requireBackendResponse(await request(`/shipments/${shipmentId}/stage`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    }), 'The shipment status update')
+    if (apiRes && apiRes.shipment) return apiRes.shipment
+    throw new ApiError('The backend did not return the updated shipment.')
+  },
+
+  async cancel(shipmentId) {
+    const apiRes = requireBackendResponse(await request(`/shipments/${shipmentId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    }), 'The shipment cancellation')
+    if (apiRes && apiRes.shipment) return apiRes.shipment
+    throw new ApiError('The backend did not return the cancelled shipment.')
+  },
+
+  async getLocation(shipmentId) {
+    const apiRes = requireBackendResponse(await request(`/shipments/${shipmentId}/location`), 'The live shipment location')
+    return apiRes.location || null
+  },
+
+  async reportLocation(shipmentId, location) {
+    const apiRes = requireBackendResponse(await request(`/shipments/${shipmentId}/location`, {
+      method: 'POST',
+      body: JSON.stringify(location)
+    }), 'The live shipment location')
+    if (apiRes && apiRes.location) return apiRes.location
+    throw new ApiError('The backend did not return the saved shipment location.')
   }
 }
 
@@ -301,9 +359,9 @@ export const offerService = {
   },
 
   async accept(offerId) {
-    const apiRes = await request(`/offers/${offerId}/accept`, { method: 'POST' })
+    const apiRes = requireBackendResponse(await request(`/offers/${offerId}/accept`, { method: 'POST' }), 'The offer acceptance')
     if (apiRes && apiRes.success) return apiRes
-    return { success: true, message: 'Offer accepted in offline demo mode' }
+    throw new ApiError('The backend did not confirm the offer acceptance.')
   }
 }
 
@@ -372,12 +430,12 @@ export const disruptionService = {
   },
 
   async recover(disruptionId, payload) {
-    const apiRes = await request(`/disruptions/${disruptionId}/recover`, {
+    const apiRes = requireBackendResponse(await request(`/disruptions/${disruptionId}/recover`, {
       method: 'POST',
       body: JSON.stringify(payload)
-    })
+    }), 'The disruption recovery')
     if (apiRes && apiRes.success) return apiRes
-    return { success: true, message: 'Disruption recovered successfully in offline mode' }
+    throw new ApiError('The backend did not confirm the disruption recovery.')
   }
 }
 
@@ -557,7 +615,8 @@ export const notificationService = {
   },
 
   async markRead(id) {
-    await request(`/notifications/${id}/read`, { method: 'PATCH' })
-    return true
+    const apiRes = requireBackendResponse(await request(`/notifications/${id}/read`, { method: 'PATCH' }), 'The notification update')
+    if (apiRes.success) return true
+    throw new ApiError('The backend did not confirm the notification update.')
   }
 }

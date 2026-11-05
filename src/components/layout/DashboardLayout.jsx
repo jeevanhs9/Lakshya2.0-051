@@ -4,45 +4,31 @@ import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import { useApp } from '../../context/useApp'
 import Toast from '../ui/Toast'
+import { useTranslation } from 'react-i18next'
 
-const TITLES = {
-  '/farmer': 'Farmer Dashboard',
-  '/farmer/products': 'My Products',
-  '/farmer/listing/new': 'Add New Listing',
-  '/farmer/orders': 'Orders',
-  '/farmer/insights': 'AI Insights',
-  '/farmer/pooling': 'Intelligent Load Pooling',
-  '/farmer/offers': 'Buyer Offers & Net Proceeds',
-  '/farmer/profile': 'Profile',
-  '/buyer': 'Marketplace',
-  '/buyer/cart': 'Shopping Cart',
-  '/buyer/checkout': 'Checkout',
-  '/buyer/orders': 'My Orders',
-  '/buyer/profile': 'Profile',
-  '/logistics': 'Logistics Dashboard',
-  '/logistics/routes': 'Route Details',
-  '/logistics/pooling': 'Load Pooling Coordination',
-  '/logistics/profile': 'Profile',
-  '/admin': 'Platform Overview',
-  '/admin/farmers': 'Farmers / FPOs',
-  '/admin/buyers': 'Buyers',
-  '/admin/orders': 'Platform Orders',
-  '/admin/analytics': 'Platform Analytics',
-  '/admin/enterprise': 'SAP Enterprise SCM Gateway',
-  '/admin/profile': 'Profile',
-  '/disruptions': 'Supply Chain Disruption Recovery Hub',
+const TITLE_KEYS = {
+  '/farmer': 'routes.farmerDashboard', '/farmer/products': 'ui.myProducts', '/farmer/listing/new': 'ui.addNewListing',
+  '/farmer/orders': 'ui.orders', '/farmer/insights': 'ui.aiInsights', '/farmer/pooling': 'routes.intelligentLoadPooling',
+  '/farmer/offers': 'routes.buyerOffersNetProceeds', '/farmer/profile': 'ui.profile', '/buyer': 'ui.marketplace',
+  '/buyer/cart': 'routes.shoppingCart', '/buyer/checkout': 'ui.checkout', '/buyer/orders': 'ui.myOrders',
+  '/buyer/profile': 'ui.profile', '/logistics': 'ui.logisticsDashboard', '/logistics/routes': 'ui.routeDetails',
+  '/logistics/pooling': 'routes.loadPoolingCoordination', '/logistics/profile': 'ui.profile', '/admin': 'routes.platformOverview',
+  '/admin/farmers': 'ui.farmersFpos', '/admin/buyers': 'ui.buyers', '/admin/orders': 'routes.platformOrders',
+  '/admin/analytics': 'routes.platformAnalytics', '/admin/enterprise': 'routes.sapEnterpriseGateway',
+  '/admin/profile': 'ui.profile', '/disruptions': 'routes.disruptionRecovery',
 }
 
-function titleFor(pathname) {
-  if (TITLES[pathname]) return TITLES[pathname]
-  if (pathname.startsWith('/buyer/product/')) return 'Product Details'
-  return 'FarmLink AI'
+function titleFor(pathname, t) {
+  if (TITLE_KEYS[pathname]) return t(TITLE_KEYS[pathname])
+  if (pathname.startsWith('/buyer/product/')) return t('routes.productDetails')
+  return t('ui.appName')
 }
 
 export default function DashboardLayout({ allowedRole }) {
   const { user, toast, dismissToast } = useApp()
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const { t } = useTranslation()
 
   if (!user) return <Navigate to="/login" replace />
   const isAllowed = !allowedRole || user.role === allowedRole || (allowedRole === 'farmer' && user.role === 'fpo')
@@ -52,7 +38,7 @@ export default function DashboardLayout({ allowedRole }) {
     <div className="min-h-screen flex bg-sand-50 selection:bg-leaf-300 selection:text-ink-900">
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="flex-1 min-w-0 flex flex-col relative">
-        <Topbar title={titleFor(location.pathname)} onMenuClick={() => setMobileOpen(true)} />
+        <Topbar title={titleFor(location.pathname, t)} onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 p-4 lg:p-7 max-w-[1400px] w-full mx-auto relative z-0 animate-fade-up">
           <Outlet />
         </main>

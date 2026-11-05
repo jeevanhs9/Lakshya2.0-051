@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { products as seedProducts } from '../data/products'
 import { orders as seedOrders, ORDER_STAGES } from '../data/orders'
 import { demoUsers } from '../data/users'
-import { calculateLinePrice } from '../utils/pricing'
 import { AppContext } from './contextStore'
-import { productService, orderService, notificationService } from '../services/api'
+import { authService, productService, orderService, notificationService } from '../services/api'
 
 function loadDemoState(key, fallback) {
   try {
@@ -25,14 +24,6 @@ function saveDemoState(key, value) {
   }
 }
 
-function nextNumericId(items, prefix, minimum) {
-  const largest = items.reduce((current, item) => {
-    const match = String(item.id).match(new RegExp(`^${prefix}(\\d+)$`))
-    return match ? Math.max(current, Number(match[1])) : current
-  }, minimum)
-  return `${prefix}${largest + 1}`
-}
-
 export function AppProvider({ children }) {
   const [user, setUser] = useState(() => loadDemoState('farmlink-user', null))
   const [listings, setListings] = useState(() => loadDemoState('farmlink-listings', seedProducts))
@@ -46,48 +37,79 @@ export function AppProvider({ children }) {
   useEffect(() => { saveDemoState('farmlink-orders', orders) }, [orders])
   useEffect(() => { saveDemoState('farmlink-cart', cart) }, [cart])
 
-  // Initial fetch from backend if active
-  useEffect(() => {
-    let mounted = true
-    productService.list().then((prods) => {
-      if (mounted && prods && prods.length) {
-        setListings((curr) => {
-          // Merge to preserve newly added local items
-          const ids = new Set(curr.map(c => c.id))
-          const merged = [...curr]
-          prods.forEach(p => { if (!ids.has(p.id)) merged.push(p) })
-          return merged
-        })
-      }
-    })
-
-    orderService.list().then((ords) => {
-      if (mounted && ords && ords.length) {
-        setOrders((curr) => {
-          const ids = new Set(curr.map(c => c.id))
-          const merged = [...curr]
-          ords.forEach(o => { if (!ids.has(o.id)) merged.push(o) })
-          return merged
-        })
-      }
-    })
-
-    notificationService.list().then((notifs) => {
-      if (mounted && notifs) setNotifications(notifs)
-    })
-
-    return () => { mounted = false }
-  }, [])
-
   const notify = useCallback((message, tone = 'success') => {
     setToast({ message, tone, id: Date.now() })
   }, [])
 
-  const login = useCallback((role) => {
-    if (demoUsers[role]) {
-      setUser(demoUsers[role])
-    }
+  const refreshListings = useCallback(async () => {
+    const { items, source } = await productService.list()
+    if (source === 'backend') setListings(items)
+    else setListings((current) => current.length ? current : items)
+    return items
   }, [])
+
+  const refreshOrders = useCallback(async () => {
+    const filters = user?.role === 'buyer'
+      ? { buyerId: user.id }
+      : ['farmer', 'fpo'].includes(user?.role)
+        ? { farmerId: user.id }
+        : {}
+    const { items, source } = await orderService.list(filters)
+    if (source === 'backend') setOrders(items)
+    else setOrders((current) => current.length ? current : items)
+    return items
+  }, [user])
+
+  const refreshNotifications = useCallback(async () => {
+    const items = await notificationService.list(user?.role, user?.id)
+    setNotifications(items || [])
+    return items
+  }, [user])
+
+  // Initial fetch from backend if active
+  useEffect(() => {
+    let mounted = true
+    productService.list().then(({ items, source }) => {
+      if (!mounted) return
+      if (source === 'backend') setListings(items)
+      else setListings((current) => current.length ? current : items)
+    }).catch((error) => {
+      if (mounted) notify(`Could not load listings: ${error.message}`, 'error')
+    })
+
+    const filters = user?.role === 'buyer'
+      ? { buyerId: user.id }
+      : ['farmer', 'fpo'].includes(user?.role)
+        ? { farmerId: user.id }
+        : {}
+    orderService.list(filters).then(({ items, source }) => {
+      if (!mounted) return
+      if (source === 'backend') setOrders(items)
+      else setOrders((current) => current.length ? current : items)
+    }).catch((error) => {
+      if (mounted) notify(`Could not load orders: ${error.message}`, 'error')
+    })
+
+    notificationService.list(user?.role, user?.id).then((notifs) => {
+      if (mounted && notifs) setNotifications(notifs)
+    }).catch((error) => {
+      if (mounted) notify(`Could not load notifications: ${error.message}`, 'error')
+    })
+
+    return () => { mounted = false }
+  }, [notify, user])
+
+  const login = useCallback(async (role) => {
+    if (!demoUsers[role]) return null
+    try {
+      const authenticatedUser = await authService.demoLogin(role)
+      setUser(authenticatedUser)
+      return authenticatedUser
+    } catch (error) {
+      notify(`Sign-in failed: ${error.message}`, 'error')
+      return null
+    }
+  }, [notify])
 
   const logout = useCallback(() => {
     setUser(null)
@@ -95,47 +117,48 @@ export function AppProvider({ children }) {
     try { window.localStorage.removeItem('farmlink-user') } catch {}
   }, [])
 
-  const addListing = useCallback((listing) => {
-    const newId = nextNumericId(listings, 'p', 100)
+  const addListing = useCallback(async (listing) => {
     const newListing = {
-      id: newId,
       farmerId: user?.id ?? 'f1',
       farmer: user?.orgName ?? "Farmer's Listing",
       demand: 'Medium',
-      rating: 4.8,
-      reviews: 1,
       image: listing.image || 'https://images.unsplash.com/photo-1592841200221-a6898f307baa?q=80&w=800&auto=format&fit=crop',
       ...listing,
       location: listing.location?.trim() || user?.location || 'Kolar, Karnataka',
-      quantity: Math.max(0, Number(listing.quantity) || 0),
-      price: Math.max(0, Number(listing.price) || 0),
-      isActive: true,
     }
-    setListings((prev) => [newListing, ...prev])
-    productService.create(newListing).catch(() => {})
-    notify(`${newListing.name} has been added to your listings.`)
-    return newListing
-  }, [listings, user, notify])
+    try {
+      const savedListing = await productService.create(newListing)
+      setListings((prev) => [savedListing, ...prev.filter((item) => item.id !== savedListing.id)])
+      notify(`${savedListing.name} has been added to your listings.`)
+      return savedListing
+    } catch (error) {
+      notify(`Listing was not saved: ${error.message}`, 'error')
+      return null
+    }
+  }, [user, notify])
 
-  const editListing = useCallback((listingId, updates) => {
-    setListings((prev) => prev.map((item) => {
-      if (item.id !== listingId) return item
-      const updated = {
-        ...item,
-        ...updates,
-        price: updates.price !== undefined ? Math.max(0, Number(updates.price) || 0) : item.price,
-        quantity: updates.quantity !== undefined ? Math.max(0, Number(updates.quantity) || 0) : item.quantity,
-      }
-      productService.update(listingId, updated).catch(() => {})
-      return updated
-    }))
-    notify('Produce listing updated successfully.')
+  const editListing = useCallback(async (listingId, updates) => {
+    try {
+      const savedListing = await productService.update(listingId, updates)
+      setListings((prev) => prev.map((item) => item.id === listingId ? savedListing : item))
+      notify('Produce listing updated successfully.')
+      return savedListing
+    } catch (error) {
+      notify(`Listing was not updated: ${error.message}`, 'error')
+      return null
+    }
   }, [notify])
 
-  const deleteListing = useCallback((listingId) => {
-    setListings((prev) => prev.filter((item) => item.id !== listingId))
-    productService.delete(listingId).catch(() => {})
-    notify('Listing deactivated and removed from active marketplace.', 'info')
+  const deleteListing = useCallback(async (listingId) => {
+    try {
+      await productService.delete(listingId)
+      setListings((prev) => prev.filter((item) => item.id !== listingId))
+      notify('Listing deactivated and removed from active marketplace.', 'info')
+      return true
+    } catch (error) {
+      notify(`Listing was not deactivated: ${error.message}`, 'error')
+      return false
+    }
   }, [notify])
 
   const addToCart = useCallback((productId, quantity) => {
@@ -192,79 +215,72 @@ export function AppProvider({ children }) {
 
   const cartCount = useMemo(() => cart.length, [cart])
 
-  const placeOrder = useCallback((deliveryLocation, paymentMethod) => {
+  const placeOrder = useCallback(async (deliveryLocation, paymentMethod) => {
     const validItems = cartItems.filter((item) => item.quantity > 0 && item.quantity <= item.product.quantity)
     if (!validItems.length || validItems.length !== cartItems.length) {
       notify('Review your cart quantities before placing the order.', 'error')
       return []
     }
 
-    const firstOrderNumber = Number(nextNumericId(orders, 'ORD-', 1042).replace('ORD-', ''))
-    const newOrders = validItems.map((item, index) => {
-      const { subtotal, logisticsFee, platformFee, total } = calculateLinePrice(item.product.price, item.quantity)
-      return {
-        id: `ORD-${firstOrderNumber + index}`,
-        buyerId: user?.id ?? 'b1',
-        buyer: user?.orgName ?? 'Buyer',
-        farmerId: item.product.farmerId,
-        farmer: item.product.farmer,
-        product: item.product.name,
-        quantity: item.quantity,
-        unit: item.product.unit,
-        subtotal,
-        logisticsFee,
-        platformFee,
-        total,
-        paymentMethod,
-        stage: 'Order Placed',
-        placedOn: new Date().toISOString().slice(0, 10),
-        eta: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+    try {
+      const createdOrders = await orderService.placeOrder({
+        items: validItems.map((item) => ({ productId: item.product.id, quantity: item.quantity })),
+        buyerId: user?.id,
         deliveryLocation: deliveryLocation.trim(),
-      }
-    })
+        paymentMethod,
+      })
+      const purchased = new Map(validItems.map((item) => [item.product.id, item.quantity]))
+      setOrders((prev) => [...createdOrders, ...prev.filter((order) => !createdOrders.some((saved) => saved.id === order.id))])
+      setListings((prev) => prev.map((product) => purchased.has(product.id)
+        ? { ...product, quantity: Math.max(0, product.quantity - purchased.get(product.id)) }
+        : product))
+      clearCart()
+      notify(`${createdOrders.length} order${createdOrders.length === 1 ? '' : 's'} placed successfully.`)
+      return createdOrders
+    } catch (error) {
+      notify(`Order was not placed: ${error.message}`, 'error')
+      return []
+    }
+  }, [cartItems, user, clearCart, notify])
 
-    setOrders((prev) => [...newOrders, ...prev])
-    const purchased = new Map(validItems.map((item) => [item.product.id, item.quantity]))
-    setListings((prev) => prev.map((product) => purchased.has(product.id)
-      ? { ...product, quantity: Math.max(0, product.quantity - purchased.get(product.id)) }
-      : product))
-    clearCart()
+  const advanceOrderStage = useCallback(async (orderId) => {
+    const order = orders.find((item) => item.id === orderId)
+    if (!order) return null
+    const index = ORDER_STAGES.indexOf(order.stage)
+    if (index < 0 || index >= ORDER_STAGES.length - 1) return null
+    const nextStage = ORDER_STAGES[index + 1]
+    try {
+      const savedOrder = await orderService.advanceStage(orderId, nextStage)
+      setOrders((prev) => prev.map((item) => item.id === orderId ? savedOrder : item))
+      return savedOrder
+    } catch (error) {
+      notify(`Order status was not updated: ${error.message}`, 'error')
+      return null
+    }
+  }, [orders, notify])
 
-    // Trigger backend order placement asynchronously
-    orderService.placeOrder({
-      items: validItems.map(i => ({ productId: i.product.id, quantity: i.quantity })),
-      buyerId: user?.id ?? 'b1',
-      deliveryLocation: deliveryLocation.trim(),
-      paymentMethod,
-    }).catch(() => {})
+  const cancelOrder = useCallback(async (orderId, reason = 'Buyer cancellation request') => {
+    try {
+      const response = await orderService.cancelOrder(orderId, reason)
+      setOrders((prev) => prev.map((order) => order.id === orderId ? response.order : order))
+      notify(`Order ${orderId} has been cancelled and recorded.`, 'info')
+      refreshListings().catch((error) => notify(`Order cancelled, but inventory could not refresh: ${error.message}`, 'error'))
+      refreshNotifications().catch((error) => notify(`Order cancelled, but notifications could not refresh: ${error.message}`, 'error'))
+      return response
+    } catch (error) {
+      notify(`Order was not cancelled: ${error.message}`, 'error')
+      return null
+    }
+  }, [notify, refreshListings, refreshNotifications])
 
-    notify(`${newOrders.length} order${newOrders.length === 1 ? '' : 's'} placed successfully.`)
-    return newOrders
-  }, [cartItems, orders, user, clearCart, notify])
-
-  const advanceOrderStage = useCallback((orderId) => {
-    setOrders((prev) => prev.map((order) => {
-      if (order.id !== orderId) return order
-      const index = ORDER_STAGES.indexOf(order.stage)
-      const next = ORDER_STAGES[Math.min(index + 1, ORDER_STAGES.length - 1)]
-      orderService.advanceStage(orderId, next).catch(() => {})
-      return { ...order, stage: next }
-    }))
-  }, [])
-
-  const cancelOrder = useCallback((orderId, reason = 'Buyer cancellation request') => {
-    setOrders((prev) => prev.map((order) => {
-      if (order.id !== orderId) return order
-      return { ...order, stage: 'Cancelled', isDisrupted: true, disruptionReason: reason }
-    }))
-    orderService.cancelOrder(orderId, reason).catch(() => {})
-    notify(`Order ${orderId} has been marked as Cancelled. Disruption recorded.`, 'info')
+  const markNotificationRead = useCallback(async (id) => {
+    try {
+      await notificationService.markRead(id)
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n))
+    } catch (error) {
+      notify(`Notification was not marked read: ${error.message}`, 'error')
+    }
   }, [notify])
-
-  const markNotificationRead = useCallback((id) => {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n))
-    notificationService.markRead(id).catch(() => {})
-  }, [])
 
   const unreadNotificationsCount = useMemo(() => {
     return notifications.filter(n => !n.isRead).length
@@ -272,8 +288,9 @@ export function AppProvider({ children }) {
 
   const value = {
     user, login, logout,
-    listings, addListing, editListing, deleteListing,
+    listings, addListing, editListing, deleteListing, refreshListings,
     orders, advanceOrderStage, cancelOrder,
+    refreshOrders, refreshNotifications,
     cart, cartItems, cartCount, addToCart, updateCartQuantity, removeFromCart, clearCart, placeOrder,
     notifications, unreadNotificationsCount, markNotificationRead,
     toast, dismissToast: () => setToast(null), notify,

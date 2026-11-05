@@ -8,24 +8,32 @@ import Modal from '../components/ui/Modal'
 import { formatINR } from '../utils/format'
 
 export default function DisruptionRecovery() {
-  const { notify } = useApp()
+  const { notify, refreshOrders, refreshListings, refreshNotifications } = useApp()
   const [disruptions, setDisruptions] = useState([])
   const [selectedDisruption, setSelectedDisruption] = useState(null)
   const [matches, setMatches] = useState([])
+  const [matchesNotice, setMatchesNotice] = useState('')
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [reassignModalOpen, setReassignModalOpen] = useState(false)
   const [chosenBuyer, setChosenBuyer] = useState(null)
   const [recovering, setRecovering] = useState(false)
   const [resolvedNotice, setResolvedNotice] = useState(null)
 
-  const selectDisruption = (disr) => {
+  const selectDisruption = useCallback((disr) => {
     setSelectedDisruption(disr)
+    setMatchesNotice('')
     setLoadingMatches(true)
     disruptionService.getMatches(disr.id).then((res) => {
       setMatches(res?.alternativeBuyers || [])
+      setMatchesNotice(res?.message || '')
       setLoadingMatches(false)
+    }).catch((error) => {
+      setMatches([])
+      setMatchesNotice(error.message)
+      setLoadingMatches(false)
+      notify(`Could not load alternative buyers: ${error.message}`, 'error')
     })
-  }
+  }, [notify])
 
   const loadDisruptions = useCallback(() => {
     disruptionService.list().then((list) => {
@@ -33,8 +41,10 @@ export default function DisruptionRecovery() {
       if (list && list.length > 0 && !selectedDisruption) {
         selectDisruption(list[0])
       }
+    }).catch((error) => {
+      notify(`Could not load disruptions: ${error.message}`, 'error')
     })
-  }, [selectedDisruption])
+  }, [selectedDisruption, notify, selectDisruption])
 
   useEffect(() => {
     loadDisruptions()
@@ -43,21 +53,30 @@ export default function DisruptionRecovery() {
   const handleAuthorizeReassignment = async () => {
     if (!selectedDisruption || !chosenBuyer) return
     setRecovering(true)
-    const res = await disruptionService.recover(selectedDisruption.id, {
-      buyerId: chosenBuyer.buyer_id,
-      buyerName: chosenBuyer.buyer_name,
-      agreedPrice: chosenBuyer.estimated_offer_price,
-    })
-    setRecovering(false)
-    setReassignModalOpen(false)
-    if (res && res.success) {
-      setResolvedNotice({
-        disruptionId: selectedDisruption.id,
+    try {
+      const res = await disruptionService.recover(selectedDisruption.id, {
+        buyerId: chosenBuyer.buyer_id,
         buyerName: chosenBuyer.buyer_name,
-        recoveredAmount: chosenBuyer.estimated_gross_recovery,
+        agreedPrice: chosenBuyer.estimated_offer_price,
       })
-      notify(`Order successfully reassigned to ${chosenBuyer.buyer_name}. Disruption resolved.`)
-      loadDisruptions()
+      setReassignModalOpen(false)
+      if (res && res.success) {
+        setResolvedNotice({
+          disruptionId: selectedDisruption.id,
+          buyerName: chosenBuyer.buyer_name,
+          recoveredAmount: chosenBuyer.estimated_gross_recovery,
+        })
+        notify(`Order successfully reassigned to ${chosenBuyer.buyer_name}. Disruption resolved.`)
+        loadDisruptions()
+        const refreshResults = await Promise.allSettled([refreshOrders(), refreshListings(), refreshNotifications()])
+        if (refreshResults.some((result) => result.status === 'rejected')) {
+          notify('Recovery saved, but some order or inventory data could not refresh.', 'error')
+        }
+      }
+    } catch (error) {
+      notify(`Disruption was not recovered: ${error.message}`, 'error')
+    } finally {
+      setRecovering(false)
     }
   }
 
@@ -198,7 +217,7 @@ export default function DisruptionRecovery() {
                     <p className="text-xs text-ink-500">Scanning buyer procurement registries…</p>
                   </div>
                 ) : matches.length === 0 ? (
-                  <p className="text-sm text-ink-500 p-6 text-center">No matching alternative buyers found for this specific produce lot.</p>
+                  <p className="text-sm text-ink-500 p-6 text-center">{matchesNotice || 'No matching alternative buyers found for this specific produce lot.'}</p>
                 ) : (
                   <div className="space-y-4">
                     {matches.map((m, idx) => (

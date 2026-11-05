@@ -12,6 +12,7 @@ export default function AddListing() {
   const { addListing, user } = useApp()
   const navigate = useNavigate()
   const [submitted, setSubmitted] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '', category: 'Vegetables', quantity: '', unit: 'kg', price: '',
     location: '', harvestDate: '', quality: 'Grade A', description: '', image: '',
@@ -19,23 +20,29 @@ export default function AddListing() {
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    addListing({
-      name: form.name || 'New Produce',
-      category: form.category,
-      quantity: Number(form.quantity) || 0,
-      unit: form.unit,
-      price: Number(form.price) || 0,
-      location: form.location,
-      harvest: 'Fresh Harvest',
-      harvestDate: form.harvestDate || new Date().toISOString().slice(0, 10),
-      quality: form.quality,
-      description: form.description,
-      image: form.image,
-      demand: 'Medium',
-    })
-    setSubmitted(true)
+    if (saving) return
+    setSaving(true)
+    try {
+      const saved = await addListing({
+        name: form.name || 'New Produce',
+        category: form.category,
+        quantity: Number(form.quantity) || 0,
+        unit: form.unit,
+        price: Number(form.price) || 0,
+        location: form.location,
+        harvest: 'Fresh Harvest',
+        harvestDate: form.harvestDate || new Date().toISOString().slice(0, 10),
+        quality: form.quality,
+        description: form.description,
+        image: form.image,
+        demand: 'Medium',
+      })
+      if (saved) setSubmitted(true)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (submitted) {
@@ -190,7 +197,7 @@ export default function AddListing() {
 
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="outline" onClick={() => navigate('/farmer/products')}>Cancel</Button>
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" loading={saving}>
             Publish Listing <ArrowRight size={16} className="ml-2" />
           </Button>
         </div>

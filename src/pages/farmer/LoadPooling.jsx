@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Truck, CheckCircle2, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useApp } from '../../context/useApp'
 import { poolingService } from '../../services/api'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -11,6 +12,7 @@ const CORRIDORS = ['Bengaluru East', 'Bengaluru North', 'Bengaluru Central', 'My
 
 export default function LoadPooling() {
   const navigate = useNavigate()
+  const { notify, refreshListings } = useApp()
   const [corridor, setCorridor] = useState(CORRIDORS[0])
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,23 +25,41 @@ export default function LoadPooling() {
     poolingService.getOpportunities(corridor).then((opps) => {
       if (active) {
         setOpportunities(opps || [])
-        setLoading(false)
       }
+    }).catch((error) => {
+      if (active) {
+        setOpportunities([])
+        notify(`Could not load pooling opportunities: ${error.message}`, 'error')
+      }
+    }).finally(() => {
+      if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [corridor])
+  }, [corridor, notify])
 
   const handleConfirmPool = async () => {
     if (!selectedOpp) return
     setConfirming(true)
-    const shipment = await poolingService.confirmPool({
-      itemIds: selectedOpp.candidate_items,
-      destination: selectedOpp.destination_corridor,
-      vehicleName: selectedOpp.recommended_vehicle?.name || 'Tata 407 (3.5T Reefer)',
-    })
-    setConfirming(false)
-    setConfirmedShipment(shipment)
-    setSelectedOpp(null)
+    try {
+      const shipment = await poolingService.confirmPool({
+        itemIds: selectedOpp.candidate_items,
+        destination: selectedOpp.destination_corridor,
+        vehicleName: selectedOpp.recommended_vehicle?.name || 'Tata 407 (3.5T Reefer)',
+      })
+      setConfirmedShipment(shipment)
+      setSelectedOpp(null)
+      const [opportunitiesResult, listingsResult] = await Promise.allSettled([
+        poolingService.getOpportunities(corridor),
+        refreshListings(),
+      ])
+      if (opportunitiesResult.status === 'fulfilled') setOpportunities(opportunitiesResult.value)
+      else notify(`Shipment confirmed, but pooling options could not refresh: ${opportunitiesResult.reason.message}`, 'error')
+      if (listingsResult.status === 'rejected') notify(`Shipment confirmed, but listings could not refresh: ${listingsResult.reason.message}`, 'error')
+    } catch (error) {
+      notify(`Shipment was not confirmed: ${error.message}`, 'error')
+    } finally {
+      setConfirming(false)
+    }
   }
 
   return (
@@ -65,7 +85,10 @@ export default function LoadPooling() {
           <label className="text-xs font-bold uppercase text-leaf-300 tracking-wider">Destination Corridor:</label>
           <select
             value={corridor}
-            onChange={(e) => setCorridor(e.target.value)}
+            onChange={(e) => {
+              setLoading(true)
+              setCorridor(e.target.value)
+            }}
             className="px-3.5 py-2 rounded-xl bg-forest-900 border border-white/20 text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-leaf-400 cursor-pointer"
           >
             {CORRIDORS.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -82,7 +105,7 @@ export default function LoadPooling() {
             </div>
             <div>
               <h4 className="font-display font-bold text-base text-forest-950">
-                Pooled Shipment {confirmedShipment.id} Dispatched!
+                Pooled Shipment {confirmedShipment.id} Confirmed
               </h4>
               <p className="text-xs text-forest-800 mt-0.5">
                 Consolidated {confirmedShipment.pooledOrdersCount || 2} lots onto {confirmedShipment.vehicleName}. Estimated savings: {formatINR(confirmedShipment.estimatedSavings || 1350)} ({confirmedShipment.savingsPct || 28.1}%).

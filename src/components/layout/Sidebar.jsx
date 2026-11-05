@@ -5,58 +5,41 @@ import {
   TrendingUp, AlertTriangle, Server, Layers,
 } from 'lucide-react'
 import { useApp } from '../../context/useApp'
+import { useTranslation } from 'react-i18next'
 
 const NAV = {
   farmer: [
-    { to: '/farmer', label: 'Dashboard', icon: LayoutGrid, end: true },
-    { to: '/farmer/products', label: 'My Products', icon: Package },
-    { to: '/farmer/listing/new', label: 'Add New Listing', icon: PlusCircle },
-    { to: '/farmer/pooling', label: 'Load Pooling', icon: Truck },
-    { to: '/farmer/offers', label: 'Buyer Offers', icon: TrendingUp },
-    { to: '/disruptions', label: 'Disruption Hub', icon: AlertTriangle },
-    { to: '/farmer/orders', label: 'Orders', icon: ClipboardList },
-    { to: '/farmer/insights', label: 'AI Insights', icon: LineChart },
-    { to: '/farmer/profile', label: 'Profile', icon: User },
+    { to: '/farmer', labelKey: 'dashboard', icon: LayoutGrid, end: true },
+    { to: '/farmer/products', labelKey: 'myProducts', icon: Package }, { to: '/farmer/listing/new', labelKey: 'addNewListing', icon: PlusCircle },
+    { to: '/farmer/pooling', labelKey: 'loadPooling', icon: Truck }, { to: '/farmer/offers', labelKey: 'buyerOffers', icon: TrendingUp },
+    { to: '/disruptions', labelKey: 'disruptionHub', icon: AlertTriangle }, { to: '/farmer/orders', labelKey: 'orders', icon: ClipboardList },
+    { to: '/farmer/insights', labelKey: 'aiInsights', icon: LineChart }, { to: '/farmer/profile', labelKey: 'profile', icon: User },
   ],
   fpo: [
-    { to: '/farmer', label: 'FPO Dashboard', icon: LayoutGrid, end: true },
-    { to: '/farmer/products', label: 'Collective Stock', icon: Package },
-    { to: '/farmer/listing/new', label: 'Add Lot Listing', icon: PlusCircle },
-    { to: '/farmer/pooling', label: 'Load Pooling', icon: Truck },
-    { to: '/farmer/offers', label: 'Buyer Offers', icon: TrendingUp },
-    { to: '/disruptions', label: 'Disruption Hub', icon: AlertTriangle },
-    { to: '/farmer/orders', label: 'Orders', icon: ClipboardList },
-    { to: '/farmer/insights', label: 'AI Insights', icon: LineChart },
-    { to: '/farmer/profile', label: 'Profile', icon: User },
+    { to: '/farmer', labelKey: 'fpoDashboard', icon: LayoutGrid, end: true }, { to: '/farmer/products', labelKey: 'collectiveStock', icon: Package },
+    { to: '/farmer/listing/new', labelKey: 'addLotListing', icon: PlusCircle }, { to: '/farmer/pooling', labelKey: 'loadPooling', icon: Truck },
+    { to: '/farmer/offers', labelKey: 'buyerOffers', icon: TrendingUp }, { to: '/disruptions', labelKey: 'disruptionHub', icon: AlertTriangle },
+    { to: '/farmer/orders', labelKey: 'orders', icon: ClipboardList }, { to: '/farmer/insights', labelKey: 'aiInsights', icon: LineChart }, { to: '/farmer/profile', labelKey: 'profile', icon: User },
   ],
   buyer: [
-    { to: '/buyer', label: 'Marketplace', icon: Store, end: true },
-    { to: '/buyer/cart', label: 'Cart', icon: ShoppingBag },
-    { to: '/buyer/orders', label: 'My Orders', icon: ClipboardList },
-    { to: '/disruptions', label: 'Disruption Hub', icon: AlertTriangle },
-    { to: '/buyer/profile', label: 'Profile', icon: User },
+    { to: '/buyer', labelKey: 'marketplace', icon: Store, end: true }, { to: '/buyer/cart', labelKey: 'cart', icon: ShoppingBag },
+    { to: '/buyer/orders', labelKey: 'myOrders', icon: ClipboardList }, { to: '/disruptions', labelKey: 'disruptionHub', icon: AlertTriangle }, { to: '/buyer/profile', labelKey: 'profile', icon: User },
   ],
   logistics: [
-    { to: '/logistics', label: 'Dashboard', icon: Truck, end: true },
-    { to: '/logistics/routes', label: 'Route Details', icon: Map },
-    { to: '/farmer/pooling', label: 'Load Pooling', icon: Layers },
-    { to: '/disruptions', label: 'Disruption Hub', icon: AlertTriangle },
-    { to: '/logistics/profile', label: 'Profile', icon: User },
+    { to: '/logistics', labelKey: 'dashboard', icon: Truck, end: true }, { to: '/logistics/routes', labelKey: 'routeDetails', icon: Map },
+    { to: '/farmer/pooling', labelKey: 'loadPooling', icon: Layers }, { to: '/disruptions', labelKey: 'disruptionHub', icon: AlertTriangle }, { to: '/logistics/profile', labelKey: 'profile', icon: User },
   ],
   admin: [
-    { to: '/admin', label: 'Overview', icon: LayoutGrid, end: true },
-    { to: '/admin/farmers', label: 'Farmers / FPOs', icon: Users },
-    { to: '/admin/buyers', label: 'Buyers', icon: ShoppingBag },
-    { to: '/admin/orders', label: 'Orders', icon: ClipboardList },
-    { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-    { to: '/admin/enterprise', label: 'SAP Gateway', icon: Server },
-    { to: '/disruptions', label: 'Disruption Hub', icon: AlertTriangle },
-    { to: '/admin/profile', label: 'Profile', icon: User },
+    { to: '/admin', labelKey: 'overview', icon: LayoutGrid, end: true }, { to: '/admin/farmers', labelKey: 'farmersFpos', icon: Users },
+    { to: '/admin/buyers', labelKey: 'buyers', icon: ShoppingBag }, { to: '/admin/orders', labelKey: 'orders', icon: ClipboardList },
+    { to: '/admin/analytics', labelKey: 'analytics', icon: BarChart3 }, { to: '/admin/enterprise', labelKey: 'sapGateway', icon: Server },
+    { to: '/disruptions', labelKey: 'disruptionHub', icon: AlertTriangle }, { to: '/admin/profile', labelKey: 'profile', icon: User },
   ],
 }
 
 export default function Sidebar({ mobileOpen, onClose }) {
   const { user, logout } = useApp()
+  const { t } = useTranslation()
   const items = NAV[user?.role] ?? []
 
   const roleLabels = {
@@ -86,17 +69,17 @@ export default function Sidebar({ mobileOpen, onClose }) {
             </div>
             {user?.role && (
               <span className="inline-flex items-center rounded-full bg-forest-800/50 border border-leaf-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-leaf-300 w-max">
-                {roleLabels[user.role]}
+                {t(`ui.${({ farmer: 'farmerProducer', fpo: 'fpoCoordinator', buyer: 'buyerWorkspace', logistics: 'logisticsHub', admin: 'platformAdmin' })[user.role]}`, { defaultValue: roleLabels[user.role] })}
               </span>
             )}
           </div>
-          <button className="lg:hidden text-white/70 hover:text-white transition-colors" onClick={onClose} aria-label="Close menu">
+          <button className="lg:hidden text-white/70 hover:text-white transition-colors" onClick={onClose} aria-label={t('ui.closeMenu', { defaultValue: 'Close menu' })}>
             <X size={20} />
           </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-1">
-          {items.map(({ to, label, icon: Icon, end }) => (
+          {items.map(({ to, labelKey, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -112,7 +95,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
               {({ isActive }) => (
                 <>
                   <Icon size={18} strokeWidth={2.5} className={`transition-colors ${isActive ? 'text-leaf-400' : 'text-leaf-100/50 group-hover:text-leaf-300'}`} />
-                  {label}
+                  {t(`ui.${labelKey}`)}
                 </>
               )}
             </NavLink>
@@ -132,7 +115,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-leaf-100/70 border border-white/10 hover:bg-white/5 hover:text-white transition-colors focus-ring"
           >
             <LogOut size={16} />
-            Sign out
+            {t('ui.signOut')}
           </button>
         </div>
       </aside>

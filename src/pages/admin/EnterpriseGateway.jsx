@@ -11,29 +11,38 @@ export default function EnterpriseGateway() {
   const [activeTab, setActiveTab] = useState('s4hana_po') // 's4hana_po', 'sap_tm', 'sap_control_tower'
   const [exportedPayload, setExportedPayload] = useState(null)
   const [copied, setCopied] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
-    sapService.getStatus().then((st) => { if (active) setGatewayStatus(st) })
-    setLoading(true)
+    sapService.getStatus().then((st) => {
+      if (active) setGatewayStatus(st)
+    }).catch((error) => {
+      if (active) notify(`Could not load SAP gateway status: ${error.message}`, 'error')
+    })
     const fetchPayload = async () => {
-      let payload = null
-      if (activeTab === 's4hana_po') {
-        payload = await sapService.exportPO('ORD-1042')
-      } else if (activeTab === 'sap_tm') {
-        payload = await sapService.exportTM('SHP-101')
-      } else if (activeTab === 'sap_control_tower') {
-        payload = await sapService.exportDisruptionAlert('DISR-001')
-      }
-      if (active) {
-        setExportedPayload(payload)
-        setLoading(false)
+      try {
+        let payload = null
+        if (activeTab === 's4hana_po') {
+          payload = await sapService.exportPO('ORD-1042')
+        } else if (activeTab === 'sap_tm') {
+          payload = await sapService.exportTM('SHP-101')
+        } else if (activeTab === 'sap_control_tower') {
+          payload = await sapService.exportDisruptionAlert('DISR-001')
+        }
+        if (active) setExportedPayload(payload)
+      } catch (error) {
+        if (active) {
+          setExportedPayload(null)
+          notify(`SAP export did not complete: ${error.message}`, 'error')
+        }
+      } finally {
+        if (active) setLoading(false)
       }
     }
     fetchPayload()
     return () => { active = false }
-  }, [activeTab])
+  }, [activeTab, notify])
 
   const handleCopy = () => {
     if (!exportedPayload) return
@@ -102,7 +111,11 @@ export default function EnterpriseGateway() {
         ].map((item) => (
           <button
             key={item.tab}
-            onClick={() => setActiveTab(item.tab)}
+            onClick={() => {
+              if (item.tab === activeTab) return
+              setLoading(true)
+              setActiveTab(item.tab)
+            }}
             className={`card p-5 text-left transition-all cursor-pointer ${
               activeTab === item.tab
                 ? 'border-2 border-forest-600 bg-leaf-50/30 ring-2 ring-leaf-100 shadow-md'
