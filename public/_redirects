@@ -1,0 +1,3 @@
+# Vercel SPA fallback for React Router
+/api/* /api/:splat 200
+/* /index.html 200
