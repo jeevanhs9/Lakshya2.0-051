@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && echo /*    /index.html    200 > dist/_redirects",
     "lint": "oxlint",
     "i18n:check": "node scripts/check-i18n-completeness.mjs",
     "i18n:audit": "node scripts/audit-i18n.mjs",
