@@ -442,32 +442,44 @@ export const disruptionService = {
 // ----------------- DEMAND FORECASTING & GAPS SERVICE -----------------
 export const aiService = {
   async forecast(crop, location, windowLabel) {
-    const apiRes = await request(`/forecasting?crop=${encodeURIComponent(crop)}&location=${encodeURIComponent(location)}`)
-    if (apiRes && apiRes.linear_trend_model) {
-      // Map to frontend chart format
-      const baseline = apiRes.linear_trend_model
-      return {
-        crop, location, window: windowLabel,
-        demand: 'High',
-        priceRange: [30, 34],
-        recommendedQuantity: Math.round(baseline.metrics.mae * 8),
-        bestMarket: `${location} Main Mandi`,
-        bestWindow: 'Next 3-5 Days',
-        changePct: 8.5,
-        series: [
-          { date: 'Oct 01', actual: 2800, predicted: 2750 },
-          { date: 'Oct 05', actual: 3000, predicted: 2950 },
-          { date: 'Oct 10', actual: 3200, predicted: 3180 },
-          { date: 'Oct 15', actual: 3450, predicted: 3400 },
-          { date: 'Oct 20', actual: 3700, predicted: 3650 },
-          { date: 'Oct 25', actual: null, predicted: Math.round(apiRes.next_4_weeks_forecast_kg[0] || 3850) },
-          { date: 'Oct 30', actual: null, predicted: Math.round(apiRes.next_4_weeks_forecast_kg[1] || 4050) },
-        ],
-        metrics: baseline.metrics,
-        evaluationNote: apiRes.evaluation_note
+    try {
+      const apiRes = await request(`/forecasting?crop=${encodeURIComponent(crop)}&location=${encodeURIComponent(location)}`)
+      if (apiRes && apiRes.linear_trend_model) {
+        // Map to frontend chart format
+        const baseline = apiRes.linear_trend_model
+        const forecasts = apiRes.next_4_weeks_forecast_kg || [3850, 4050, 4250, 4450]
+        const trendSlope = baseline.trend_slope_kg_per_week || 0
+        
+        // Calculate approximate change percentage
+        const changePct = trendSlope > 0 ? Math.min(Math.round((trendSlope / 3000) * 100), 15) : 5
+        
+        return {
+          crop, location, window: windowLabel,
+          demand: changePct > 8 ? 'High' : changePct > 4 ? 'Medium' : 'Moderate',
+          priceRange: [28, 34],
+          recommendedQuantity: Math.round(baseline.metrics.mae * 8),
+          bestMarket: `${location} Main Mandi`,
+          bestWindow: 'Next 3-5 Days',
+          changePct: changePct,
+          series: [
+            { date: 'Oct 01', actual: 2800, predicted: 2750 },
+            { date: 'Oct 05', actual: 3000, predicted: 2950 },
+            { date: 'Oct 10', actual: 3200, predicted: 3180 },
+            { date: 'Oct 15', actual: 3450, predicted: 3400 },
+            { date: 'Oct 20', actual: 3700, predicted: 3650 },
+            { date: 'Oct 25', actual: null, predicted: Math.round(forecasts[0] || 3850) },
+            { date: 'Oct 30', actual: null, predicted: Math.round(forecasts[1] || 4050) },
+          ],
+          metrics: baseline.metrics,
+          evaluationNote: apiRes.evaluation_note
+        }
       }
+    } catch (err) {
+      console.warn('Forecast API error, using fallback:', err)
     }
-    return getMockForecast(crop, location, windowLabel)
+    // Always return mock data as fallback
+    const mockData = getMockForecast(crop, location, windowLabel)
+    return mockData
   },
 
   async getEvaluation(crop = 'Tomato', location = 'Kolar') {
