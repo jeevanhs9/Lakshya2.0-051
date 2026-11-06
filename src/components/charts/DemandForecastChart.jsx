@@ -1,6 +1,14 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 export default function DemandForecastChart({ data }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[260px] flex items-center justify-center">
+        <p className="text-sm text-ink-500">No forecast data available</p>
+      </div>
+    )
+  }
+
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>

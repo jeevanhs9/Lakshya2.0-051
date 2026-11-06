@@ -43,19 +43,42 @@ export default function AIInsights() {
 
   useEffect(() => {
     let active = true
-    aiService.forecast(crop, location, windowLabel).then((data) => {
-      if (active && data) setForecast(data)
-    }).catch(() => {
-      if (active) setError('Forecast data could not be loaded. Try adjusting filters.')
-    })
+    
+    const loadData = async () => {
+      try {
+        const data = await aiService.forecast(crop, location, windowLabel)
+        if (active && data) {
+          console.log('Forecast data loaded:', data)
+          setForecast(data)
+          setError('')
+        }
+      } catch (err) {
+        console.error('Forecast load error:', err)
+        if (active) setError('Forecast data could not be loaded. Try adjusting filters.')
+      }
 
-    aiService.getEvaluation(crop, location).then((evalData) => {
-      if (active && evalData) setEvaluation(evalData)
-    }).catch(() => {})
+      try {
+        const evalData = await aiService.getEvaluation(crop, location)
+        if (active && evalData) {
+          console.log('Evaluation data loaded:', evalData)
+          setEvaluation(evalData)
+        }
+      } catch (err) {
+        console.error('Evaluation load error:', err)
+      }
 
-    aiService.getSupplyDemandGaps().then((gaps) => {
-      if (active && gaps) setSupplyGaps(gaps)
-    }).catch(() => {})
+      try {
+        const gaps = await aiService.getSupplyDemandGaps()
+        if (active && gaps) {
+          console.log('Supply gaps loaded:', gaps)
+          setSupplyGaps(gaps)
+        }
+      } catch (err) {
+        console.error('Supply gaps load error:', err)
+      }
+    }
+
+    loadData()
 
     return () => { active = false }
   }, [crop, location, windowLabel])
