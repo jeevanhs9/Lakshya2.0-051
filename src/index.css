@@ -5,26 +5,27 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Manrope', ui-sans-serif, system-ui, sans-serif;
 
-  --color-forest-950: #0d2417;
-  --color-forest-900: #123420;
-  --color-forest-800: #16462a;
-  --color-forest-700: #1c5834;
-  --color-forest-600: #256e41;
-  --color-forest-500: #2f8650;
-  --color-leaf-500: #4f9d5c;
-  --color-leaf-400: #6fb578;
-  --color-leaf-300: #9bcd9f;
-  --color-leaf-100: #dcefdd;
-  --color-leaf-50: #f1f8f1;
+  /* Blue & Orange Professional Theme */
+  --color-forest-950: #0c1e3a;
+  --color-forest-900: #0f2847;
+  --color-forest-800: #153a66;
+  --color-forest-700: #1e4976;
+  --color-forest-600: #2563a5;
+  --color-forest-500: #2e7dd1;
+  --color-leaf-500: #3b82f6;
+  --color-leaf-400: #60a5fa;
+  --color-leaf-300: #93c5fd;
+  --color-leaf-100: #dbeafe;
+  --color-leaf-50: #eff6ff;
 
-  --color-sand-50: #faf9f5;
-  --color-sand-100: #f4f2ea;
+  --color-sand-50: #fefaf5;
+  --color-sand-100: #fef3e8;
 
-  --color-clay-500: #c96a3a;
-  --color-clay-100: #f6e3d6;
+  --color-clay-500: #ea580c;
+  --color-clay-100: #fed7aa;
 
-  --color-amber-500: #c78a1f;
-  --color-amber-100: #f7ecd2;
+  --color-amber-500: #f59e0b;
+  --color-amber-100: #fef3c7;
 
   --color-ink-900: #1b211d;
   --color-ink-700: #3c453e;
@@ -115,8 +116,8 @@ h1, h2, h3, h4, .font-display {
 }
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(79, 157, 92, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(79, 157, 92, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 165, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(37, 99, 165, 0); }
   100% { box-shadow: 0 0 0 0 rgba(79, 157, 92, 0); }
 }
 
