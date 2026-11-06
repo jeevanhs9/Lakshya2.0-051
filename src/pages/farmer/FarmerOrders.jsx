@@ -12,7 +12,7 @@ import { formatDate, formatINR } from '../../utils/format'
 
 const STAGE_TONE = {
   'Order Placed': 'info', Confirmed: 'medium', Packed: 'medium',
-  'Picked Up': 'medium', 'In Transit': 'medium', Delivered: 'success',
+  'Picked Up': 'medium', 'In Transit': 'medium', Delivered: 'success', Cancelled: 'error',
 }
 
 function nextStage(stage) {
@@ -23,8 +23,9 @@ function nextStage(stage) {
 export default function FarmerOrders() {
   const { user, orders, advanceOrderStage } = useApp()
   const [selected, setSelected] = useState(null)
+  const [advancing, setAdvancing] = useState(false)
   const myOrders = orders.filter((o) => o.farmerId === user.id)
-  const active = myOrders.filter((o) => o.stage !== 'Delivered')
+  const active = myOrders.filter((o) => !['Delivered', 'Cancelled'].includes(o.stage))
 
   return (
     <div className="space-y-6">
@@ -78,21 +79,34 @@ export default function FarmerOrders() {
               <OrderTimeline currentStage={selected.stage} />
             </div>
 
-            {selected.stage !== 'Delivered' && (
+            {['Order Placed', 'Confirmed'].includes(selected.stage) && !selected.shipmentId && (
               <div className="flex items-center justify-between pt-4 border-t border-ink-100">
                 <p className="text-sm font-medium text-ink-500">
                   Next stage: <span className="font-bold text-ink-900">{nextStage(selected.stage)}</span>
                 </p>
                 <Button
                   size="sm"
-                  onClick={() => {
-                    advanceOrderStage(selected.id)
-                    setSelected((s) => ({ ...s, stage: nextStage(s.stage) }))
+                  loading={advancing}
+                  onClick={async () => {
+                    if (advancing) return
+                    setAdvancing(true)
+                    try {
+                      const savedOrder = await advanceOrderStage(selected.id)
+                      if (savedOrder) setSelected(savedOrder)
+                    } finally {
+                      setAdvancing(false)
+                    }
                   }}
                 >
-                  Advance Stage <ArrowRight size={14} className="ml-1.5" />
+                  {!advancing && <>Advance Stage <ArrowRight size={14} className="ml-1.5" /></>}
                 </Button>
               </div>
+            )}
+            {selected.stage === 'Packed' && !selected.shipmentId && (
+              <p className="border-t border-ink-100 pt-4 text-sm text-ink-500">Packed and awaiting shipment assignment from the logistics workspace.</p>
+            )}
+            {selected.shipmentId && !['Delivered', 'Cancelled'].includes(selected.stage) && (
+              <p className="border-t border-ink-100 pt-4 text-sm text-ink-500">Shipment {selected.shipmentId} controls pickup and delivery updates.</p>
             )}
           </div>
         )}

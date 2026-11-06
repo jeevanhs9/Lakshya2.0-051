@@ -1,8 +1,10 @@
 import { X } from 'lucide-react'
 import { useEffect, useId } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export default function Modal({ open, onClose, title, children, maxWidth = 'max-w-lg' }) {
   const titleId = useId()
+  const { t } = useTranslation()
   useEffect(() => {
     if (!open) return
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -18,7 +20,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
         type="button"
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
-        aria-label="Close dialog"
+        aria-label={t('ui.closeDialog')}
       />
       <div
         className={`relative w-full ${maxWidth} bg-white rounded-[16px] shadow-2xl max-h-[90vh] overflow-y-auto animate-fade-up`}
@@ -31,7 +33,7 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
           <button
             onClick={onClose}
             className="text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition-colors focus-ring rounded-full p-1.5"
-            aria-label="Close"
+            aria-label={t('ui.close')}
           >
             <X size={18} />
           </button>

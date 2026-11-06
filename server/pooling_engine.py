@@ -110,6 +110,8 @@ def are_crops_compatible(crop1: str, crop2: str) -> bool:
         return True
     group1 = CROP_COMPATIBILITY_GROUPS.get(crop1, 'other')
     group2 = CROP_COMPATIBILITY_GROUPS.get(crop2, 'other')
+    if group1 == 'other' or group2 == 'other':
+        return False
     # Groups that can safely travel together in a ventilated medium commercial vehicle
     compatible_cross = {
         ('fruit_veg', 'tuber_dry'),
@@ -140,7 +142,7 @@ def calculate_separate_cost(shipment_items: List[Dict[str, Any]], dest: str) -> 
 
 def calculate_pooled_cost(shipment_items: List[Dict[str, Any]], dest: str, vehicle: Dict[str, Any]) -> Dict[str, Any]:
     """Calculate consolidated multi-pickup delivery route cost."""
-    origins = list({item.get('location', 'Kolar').split(',')[0].strip() for item in shipment_items})
+    origins = sorted({item.get('location', 'Kolar').split(',')[0].strip() for item in shipment_items})
 
     # Sequence pickups: start at furthest hub, collect intermediate hubs, deliver to dest
     route_dist = 0.0
@@ -185,7 +187,7 @@ class PoolingEngine:
         groups: Dict[str, List[Dict[str, Any]]] = {}
         for item in listings_or_orders:
             crop = item.get('product') or item.get('name') or 'Tomato'
-            compat_group = CROP_COMPATIBILITY_GROUPS.get(crop, 'other')
+            compat_group = CROP_COMPATIBILITY_GROUPS.get(crop, f'unknown:{crop.lower()}')
             groups.setdefault(compat_group, []).append(item)
 
         opportunities = []
@@ -201,6 +203,8 @@ class PoolingEngine:
                 continue
 
             best_vehicle = select_best_vehicle(total_quantity)
+            if total_quantity > best_vehicle['capacity_kg']:
+                continue
             utilization_pct = round((total_quantity / best_vehicle['capacity_kg']) * 100, 1)
 
             # Calculate economics
@@ -211,8 +215,8 @@ class PoolingEngine:
             savings_inr = max(0.0, round(separate_cost - pooled_cost, 2))
             savings_pct = round((savings_inr / separate_cost * 100), 1) if separate_cost > 0 else 0.0
 
-            origins = list({item.get('location', 'Kolar').split(',')[0].strip() for item in items})
-            crops = list({item.get('product') or item.get('name') for item in items})
+            origins = sorted({item.get('location', 'Kolar').split(',')[0].strip() for item in items})
+            crops = sorted({item.get('product') or item.get('name') for item in items})
 
             # Create explainable narrative
             explanation = (

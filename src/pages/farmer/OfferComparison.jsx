@@ -7,7 +7,7 @@ import Badge from '../../components/ui/Badge'
 import { formatINR } from '../../utils/format'
 
 export default function OfferComparison() {
-  const { notify } = useApp()
+  const { notify, refreshOrders, refreshListings } = useApp()
   const [priority, setPriority] = useState('max_net_proceeds')
   const [comparison, setComparison] = useState(null)
   const [acceptingId, setAcceptingId] = useState(null)
@@ -16,17 +16,30 @@ export default function OfferComparison() {
     let active = true
     offerService.compare('p1', priority).then((res) => {
       if (active) setComparison(res)
+    }).catch((error) => {
+      if (active) notify(`Could not compare offers: ${error.message}`, 'error')
     })
     return () => { active = false }
-  }, [priority])
+  }, [priority, notify])
 
   const handleAccept = async (offerId) => {
     setAcceptingId(offerId)
-    const res = await offerService.accept(offerId)
-    setAcceptingId(null)
-    if (res && res.success) {
-      notify(`Offer ${offerId} accepted! Order generated and sent to fulfillment.`)
-      offerService.compare('p1', priority).then(setComparison)
+    try {
+      const res = await offerService.accept(offerId)
+      if (res && res.success) {
+        notify(`Offer ${offerId} accepted! Order generated and sent to fulfillment.`)
+        const [ordersResult, listingsResult] = await Promise.allSettled([refreshOrders(), refreshListings()])
+        if (ordersResult.status === 'rejected' || listingsResult.status === 'rejected') {
+          notify(`Offer accepted, but some dashboard data could not refresh. Reload the page to see the latest status.`, 'error')
+        }
+        offerService.compare('p1', priority).then(setComparison).catch((error) => {
+          notify(`Offer was accepted, but the list could not refresh: ${error.message}`, 'error')
+        })
+      }
+    } catch (error) {
+      notify(`Offer was not accepted: ${error.message}`, 'error')
+    } finally {
+      setAcceptingId(null)
     }
   }
 

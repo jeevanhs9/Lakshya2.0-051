@@ -2,6 +2,9 @@ import { Check } from 'lucide-react'
 import { ORDER_STAGES } from '../../data/orders'
 
 export default function OrderTimeline({ currentStage }) {
+  if (currentStage === 'Cancelled') {
+    return <p className="rounded-lg bg-clay-50 px-3 py-2 text-sm font-semibold text-clay-700">Order cancelled. Reserved inventory was released and a recovery record was created.</p>
+  }
   const currentIdx = ORDER_STAGES.indexOf(currentStage)
 
   return (

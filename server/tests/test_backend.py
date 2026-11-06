@@ -7,10 +7,15 @@ forecasting baselines, SAP enterprise mapping, and REST API endpoints.
 import sys
 import os
 import json
+import tempfile
 import pytest
 
 # Ensure server module is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Keep test seeding and API writes out of the checked-in/demo database.
+test_db_path = os.path.join(tempfile.gettempdir(), f'farmlink-tests-{os.getpid()}.db')
+os.environ['FARMLINK_DATABASE_URL'] = f"sqlite:///{test_db_path.replace(os.sep, '/')}"
 
 from app import app, get_db
 from models import Base, User, ProduceListing, Order, BuyerOffer, Shipment, DisruptionEvent
@@ -26,7 +31,7 @@ from seed import seed_database
 
 @pytest.fixture(scope='session', autouse=True)
 def setup_test_db():
-    seed_database()
+    seed_database(reset=True)
 
 @pytest.fixture
 def client():

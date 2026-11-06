@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PlusCircle, Package, Edit3, Trash2, TrendingUp, Truck } from 'lucide-react'
 import { useApp } from '../../context/useApp'
+import { useTranslation } from 'react-i18next'
 import Button from '../../components/ui/Button'
 import EmptyState from '../../components/ui/EmptyState'
 import Badge from '../../components/ui/Badge'
@@ -11,11 +12,14 @@ import { demandTone } from '../../utils/demand'
 
 export default function MyProducts() {
   const { user, listings, editListing, deleteListing } = useApp()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const myProducts = listings.filter((p) => p.farmerId === user.id)
 
   const [editingProduct, setEditingProduct] = useState(null)
   const [deletingProduct, setDeletingProduct] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [editForm, setEditForm] = useState({ price: '', quantity: '', quality: '', description: '' })
 
   const openEditModal = (p) => {
@@ -28,43 +32,53 @@ export default function MyProducts() {
     })
   }
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault()
-    if (!editingProduct) return
-    editListing(editingProduct.id, {
-      price: Number(editForm.price),
-      quantity: Number(editForm.quantity),
-      quality: editForm.quality,
-      description: editForm.description,
-    })
-    setEditingProduct(null)
+    if (!editingProduct || savingEdit) return
+    setSavingEdit(true)
+    try {
+      const saved = await editListing(editingProduct.id, {
+        price: Number(editForm.price),
+        quantity: Number(editForm.quantity),
+        quality: editForm.quality,
+        description: editForm.description,
+      })
+      if (saved) setEditingProduct(null)
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
-  const handleConfirmDelete = () => {
-    if (!deletingProduct) return
-    deleteListing(deletingProduct.id)
-    setDeletingProduct(null)
+  const handleConfirmDelete = async () => {
+    if (!deletingProduct || deleting) return
+    setDeleting(true)
+    try {
+      const deleted = await deleteListing(deletingProduct.id)
+      if (deleted) setDeletingProduct(null)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold text-ink-900 tracking-tight">My Produce Inventory</h2>
+          <h2 className="font-display text-2xl font-bold text-ink-900 tracking-tight">{t('ui.myProduceInventory')}</h2>
           <p className="text-sm font-medium text-ink-500 mt-1">
-            {myProducts.length} active lot{myProducts.length !== 1 ? 's' : ''} listed by {user.orgName}
+            {t('ui.activeLotsListed', { count: myProducts.length, organization: user.orgName })}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2.5">
           <Button variant="outline" onClick={() => navigate('/farmer/offers')}>
-            <TrendingUp size={15} className="mr-1.5" /> Buyer Offers
+            <TrendingUp size={15} className="mr-1.5" /> {t('ui.buyerOffers')}
           </Button>
           <Button variant="outline" onClick={() => navigate('/farmer/pooling')}>
-            <Truck size={15} className="mr-1.5" /> Load Pooling
+            <Truck size={15} className="mr-1.5" /> {t('ui.loadPooling')}
           </Button>
           <Button onClick={() => navigate('/farmer/listing/new')}>
-            <PlusCircle size={15} className="mr-1.5" /> Add New Listing
+            <PlusCircle size={15} className="mr-1.5" /> {t('ui.addNewListing')}
           </Button>
         </div>
       </div>
@@ -83,7 +97,7 @@ export default function MyProducts() {
                     tone={demandTone(p.demand)}
                     className="absolute top-3 right-3 shadow-md backdrop-blur-md bg-white/90"
                   >
-                    {p.demand} demand
+                    {t('ui.demandLabel', { demand: p.demand })}
                   </Badge>
                   <span className="absolute bottom-2 left-2 bg-black/60 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
                     Lot #{p.id}
@@ -100,18 +114,18 @@ export default function MyProducts() {
 
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="bg-sand-50 rounded-xl p-3 border border-ink-100">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-ink-500 mb-1">Asking Price</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-ink-500 mb-1">{t('ui.askingPrice')}</p>
                       <p className="font-display font-bold text-ink-900">₹{p.price}<span className="text-xs font-medium text-ink-500 font-sans">/{p.unit}</span></p>
                     </div>
                     <div className="bg-sand-50 rounded-xl p-3 border border-ink-100">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-ink-500 mb-1">Quality</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-ink-500 mb-1">{t('ui.quality')}</p>
                       <p className="text-sm font-bold text-ink-900">{p.quality}</p>
                     </div>
                   </div>
 
                   <div className="mb-4">
                     <div className="flex justify-between text-xs font-bold mb-1.5">
-                      <span className="text-ink-500">Available Inventory</span>
+                      <span className="text-ink-500">{t('ui.availableInventory')}</span>
                       <span className="text-ink-900">{p.quantity.toLocaleString('en-IN')} {p.unit}</span>
                     </div>
                     <div className="h-2 w-full bg-sand-100 rounded-full overflow-hidden">
@@ -121,7 +135,7 @@ export default function MyProducts() {
                       />
                     </div>
                     <p className="text-[11px] font-medium text-ink-500 mt-1">
-                      Estimated value: <span className="font-bold text-forest-700">{formatINR(p.quantity * p.price)}</span>
+                      {t('ui.estimatedValue')}: <span className="font-bold text-forest-700">{formatINR(p.quantity * p.price)}</span>
                     </p>
                   </div>
 
@@ -132,7 +146,7 @@ export default function MyProducts() {
                     </p>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="flex-1" onClick={() => openEditModal(p)}>
-                        <Edit3 size={14} className="mr-1" /> Edit
+                        <Edit3 size={14} className="mr-1" /> {t('ui.edit')}
                       </Button>
                       <Button variant="outline" size="sm" className="text-clay-600 hover:bg-clay-50" onClick={() => setDeletingProduct(p)}>
                         <Trash2 size={14} />
@@ -215,7 +229,7 @@ export default function MyProducts() {
               <Button type="button" variant="outline" onClick={() => setEditingProduct(null)}>
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" loading={savingEdit}>
                 Save Changes
               </Button>
             </div>
@@ -239,7 +253,7 @@ export default function MyProducts() {
               <Button variant="outline" onClick={() => setDeletingProduct(null)}>
                 Cancel
               </Button>
-              <Button className="bg-clay-600 text-white hover:bg-clay-700" onClick={handleConfirmDelete}>
+              <Button className="bg-clay-600 text-white hover:bg-clay-700" loading={deleting} onClick={handleConfirmDelete}>
                 Deactivate Listing
               </Button>
             </div>

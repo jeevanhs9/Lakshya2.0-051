@@ -1,10 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import { Bell, Menu, ShoppingCart, PackageCheck, CheckCircle2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useApp } from '../../context/useApp'
+import LanguageSelector from '../ui/LanguageSelector'
 
 export default function Topbar({ title, onMenuClick }) {
   const { user, cartCount, orders } = useApp()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
@@ -23,7 +26,7 @@ export default function Topbar({ title, onMenuClick }) {
         <button
           onClick={onMenuClick}
           className="lg:hidden text-ink-700 hover:bg-ink-100 transition-colors focus-ring rounded-lg p-2 -ml-2"
-          aria-label="Open menu"
+          aria-label={t('ui.openMenu', { defaultValue: 'Open menu' })}
         >
           <Menu size={22} />
         </button>
@@ -31,11 +34,12 @@ export default function Topbar({ title, onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-3 lg:gap-4">
+        <LanguageSelector />
         {user?.role === 'buyer' && (
           <button
             onClick={() => navigate('/buyer/cart')}
             className="relative text-ink-700 hover:text-forest-700 hover:bg-leaf-50 transition-colors focus-ring rounded-full p-2"
-            aria-label="Cart"
+            aria-label={t('ui.cart')}
           >
             <ShoppingCart size={20} />
             {cartCount > 0 && (
@@ -50,7 +54,7 @@ export default function Topbar({ title, onMenuClick }) {
           <button
             onClick={() => setNotificationsOpen((open) => !open)}
             className={`relative text-ink-700 hover:text-forest-700 hover:bg-leaf-50 transition-colors focus-ring rounded-full p-2 ${notificationsOpen ? 'bg-leaf-50 text-forest-700' : ''}`}
-            aria-label={`Order updates, ${notifications.length} active`}
+            aria-label={t('ui.orderUpdates', { defaultValue: 'Order updates, {{count}} active', count: notifications.length })}
             aria-expanded={notificationsOpen}
             aria-controls="order-updates-panel"
           >
@@ -65,17 +69,17 @@ export default function Topbar({ title, onMenuClick }) {
               id="order-updates-panel"
               className="absolute right-0 top-12 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-ink-100 bg-white p-3 shadow-2xl animate-fade-up"
               role="region"
-              aria-label="Recent order updates"
+              aria-label={t('ui.recentOrderUpdates', { defaultValue: 'Recent order updates' })}
             >
               <div className="flex items-center justify-between border-b border-ink-100 pb-3 mb-2 px-1">
                 <div>
-                  <h2 className="font-display text-sm font-bold text-ink-900">Active Orders</h2>
-                  <p className="text-[11px] text-ink-500 mt-0.5">{notifications.length} updates requiring your attention</p>
+                  <h2 className="font-display text-sm font-bold text-ink-900">{t('ui.activeOrders')}</h2>
+                  <p className="text-[11px] text-ink-500 mt-0.5">{t('ui.updatesRequiringAttention', { defaultValue: '{{count}} updates requiring your attention', count: notifications.length })}</p>
                 </div>
                 <button
                   onClick={() => setNotificationsOpen(false)}
                   className="rounded-full p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900 focus-ring transition-colors"
-                  aria-label="Close order updates"
+                  aria-label={t('ui.closeOrderUpdates', { defaultValue: 'Close order updates' })}
                 >
                   <X size={16} />
                 </button>
@@ -100,7 +104,7 @@ export default function Topbar({ title, onMenuClick }) {
                           </span>
                         </span>
                         <span className="block text-xs text-ink-500 truncate">
-                          Order {order.id} · {user?.role === 'buyer' ? `From ${order.farmer}` : `To ${order.buyer}`}
+                          {t('ui.orderId')} {order.id} · {user?.role === 'buyer' ? `${t('ui.from', { defaultValue: 'From' })} ${order.farmer}` : `${t('ui.to', { defaultValue: 'To' })} ${order.buyer}`}
                         </span>
                       </span>
                     </button>
@@ -111,8 +115,8 @@ export default function Topbar({ title, onMenuClick }) {
                   <div className="mx-auto h-12 w-12 rounded-full bg-sand-50 flex items-center justify-center mb-3">
                     <CheckCircle2 size={24} className="text-ink-300" />
                   </div>
-                  <p className="text-sm font-medium text-ink-900">All caught up!</p>
-                  <p className="text-xs text-ink-500 mt-1">No active orders right now.</p>
+                  <p className="text-sm font-medium text-ink-900">{t('ui.allCaughtUp')}</p>
+                  <p className="text-xs text-ink-500 mt-1">{t('ui.noActiveOrders')}</p>
                 </div>
               )}
 
@@ -120,7 +124,7 @@ export default function Topbar({ title, onMenuClick }) {
                 onClick={() => { setNotificationsOpen(false); navigate(ordersPath) }}
                 className="mt-3 w-full rounded-xl bg-sand-50 border border-ink-100 px-3 py-2.5 text-xs font-bold text-ink-700 hover:bg-ink-100 hover:text-ink-900 focus-ring transition-colors"
               >
-                View all orders
+                {t('ui.viewAllOrders')}
               </button>
             </div>
           )}

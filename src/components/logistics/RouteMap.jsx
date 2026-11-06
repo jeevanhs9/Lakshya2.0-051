@@ -28,25 +28,28 @@ const timeText = (seconds) => {
 
 export default function RouteMap({
   height = 440, selectedStopId, onSelectStop, onRouteState, refreshToken,
-  tracking, trackingProgress = 0, onTrackingUpdate, viewAction,
+  tracking, trackingProgress = 0, onTrackingUpdate, viewAction, stops = logisticsStops, liveLocation = null,
 }) {
   const host = useRef(null)
   const mapRef = useRef(null)
   const markerRefs = useRef({})
   const routePath = useRef([])
   const vehicleRef = useRef(null)
+  const liveMarkerRef = useRef(null)
+  const markerCtorRef = useRef(null)
   const trackingRef = useRef(0)
   const boundsRef = useRef(null)
   const routeKmRef = useRef(0)
   const [fallback, setFallback] = useState('')
   const [routingMode, setRoutingMode] = useState('loading')
+  const [mapReady, setMapReady] = useState(false)
   const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
   const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID'
 
   useEffect(() => {
     let active = true
     const showOfflineRoute = (reason) => {
-      routePath.current = logisticsStops.map((stop) => stop.position)
+      routePath.current = stops.map((stop) => stop.position)
       routeKmRef.current = Number.parseFloat(routeComparison.optimized.distance)
       setRoutingMode('demo')
       setFallback(reason)
@@ -69,17 +72,19 @@ export default function RouteMap({
         const [{ Map, InfoWindow }, { AdvancedMarkerElement }, { DirectionsService, DirectionsRenderer, TravelMode }] = await Promise.all([
           maps.importLibrary('maps'), maps.importLibrary('marker'), maps.importLibrary('routes'),
         ])
+        markerCtorRef.current = AdvancedMarkerElement
         if (!active || !host.current) return
         const map = new Map(host.current, {
           center: { lat: 13.12, lng: 77.63 }, zoom: 8, mapId,
           streetViewControl: false, mapTypeControl: false,
         })
         mapRef.current = map
+        setMapReady(true)
         const info = new InfoWindow()
         const bounds = new maps.LatLngBounds()
         boundsRef.current = bounds
 
-        logisticsStops.forEach((stop) => {
+        stops.forEach((stop) => {
           const stopOrders = getStopOrders(stop)
           const quantity = stopOrders.reduce((sum, order) => sum + order.quantityKg, 0)
           const content = document.createElement('button')
@@ -121,9 +126,9 @@ export default function RouteMap({
             polylineOptions: { strokeColor: '#256e41', strokeWeight: 5, strokeOpacity: 0.9 },
           })
           const result = await new DirectionsService().route({
-            origin: logisticsStops[0].position,
-            destination: logisticsStops.at(-1).position,
-            waypoints: logisticsStops.slice(1, -1).map((stop) => ({ location: stop.position, stopover: true })),
+            origin: stops[0].position,
+            destination: stops.at(-1).position,
+            waypoints: stops.slice(1, -1).map((stop) => ({ location: stop.position, stopover: true })),
             travelMode: TravelMode.DRIVING,
             optimizeWaypoints: false,
           })
@@ -139,7 +144,7 @@ export default function RouteMap({
         } catch (error) {
           console.error('FarmLink Directions error: road routing unavailable.', error)
           if (!active) return
-          routePath.current = logisticsStops.map((stop) => stop.position)
+          routePath.current = stops.map((stop) => stop.position)
           new maps.Polyline({
             path: routePath.current, map, strokeColor: '#256e41', strokeWeight: 4, strokeOpacity: 0.72,
             icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 }, offset: '0', repeat: '14px' }],
@@ -164,10 +169,13 @@ export default function RouteMap({
     return () => {
       active = false
       mapRef.current = null
+      setMapReady(false)
       markerRefs.current = {}
       vehicleRef.current = null
+      liveMarkerRef.current = null
+      markerCtorRef.current = null
     }
-  }, [key, mapId, refreshToken, onRouteState, onSelectStop])
+  }, [key, mapId, refreshToken, onRouteState, onSelectStop, stops])
 
   useEffect(() => { trackingRef.current = trackingProgress }, [trackingProgress])
 
@@ -177,16 +185,34 @@ export default function RouteMap({
       trackingRef.current = Math.min(100, trackingRef.current + 2)
       const index = Math.min(routePath.current.length - 1, Math.floor((trackingRef.current / 100) * (routePath.current.length - 1)))
       if (vehicleRef.current) vehicleRef.current.position = routePath.current[index]
-      const currentIndex = Math.min(logisticsStops.length - 1, Math.floor((trackingRef.current / 100) * logisticsStops.length))
+      const currentIndex = Math.min(stops.length - 1, Math.floor((trackingRef.current / 100) * stops.length))
       onTrackingUpdate?.({
         progress: trackingRef.current,
-        currentStopId: logisticsStops[currentIndex].id,
+        currentStopId: stops[currentIndex].id,
         remainingKm: Math.max(0, routeKmRef.current * (1 - trackingRef.current / 100)).toFixed(1),
       })
       if (trackingRef.current === 100) window.clearInterval(timer)
     }, 1200)
     return () => window.clearInterval(timer)
-  }, [tracking, onTrackingUpdate, fallback])
+  }, [tracking, onTrackingUpdate, fallback, stops])
+
+  useEffect(() => {
+    if (!liveLocation || !mapRef.current || !markerCtorRef.current) return
+    const position = { lat: liveLocation.latitude, lng: liveLocation.longitude }
+    if (!liveMarkerRef.current) {
+      const content = document.createElement('div')
+      content.className = 'logistics-truck'
+      content.textContent = '📍'
+      liveMarkerRef.current = new markerCtorRef.current({
+        map: mapRef.current,
+        position,
+        title: 'Live GPS location',
+        content,
+      })
+    } else {
+      liveMarkerRef.current.position = position
+    }
+  }, [liveLocation, mapReady])
 
   useEffect(() => {
     const marker = markerRefs.current[selectedStopId]
@@ -199,7 +225,7 @@ export default function RouteMap({
     if (viewAction.startsWith('recenter')) mapRef.current.panTo({ lat: 13.12, lng: 77.63 })
   }, [viewAction])
 
-  if (fallback) return <Fallback height={height} reason={fallback} selectedStopId={selectedStopId} onSelectStop={onSelectStop} trackingProgress={trackingProgress} />
+  if (fallback) return <Fallback height={height} reason={fallback} selectedStopId={selectedStopId} onSelectStop={onSelectStop} trackingProgress={trackingProgress} stops={stops} liveLocation={liveLocation} />
   return <div className="relative overflow-hidden rounded-xl border border-ink-100 bg-leaf-50 shadow-sm" style={{ height }}>
     <div ref={host} className="h-full w-full" />
     <div className="absolute right-3 top-3 rounded-full border border-ink-100 bg-white/95 px-3 py-1.5 text-[11px] font-semibold shadow-sm">
@@ -212,13 +238,21 @@ export default function RouteMap({
   </div>
 }
 
-function Fallback({ height, reason, selectedStopId, onSelectStop, trackingProgress }) {
+function Fallback({ height, reason, selectedStopId, onSelectStop, trackingProgress, stops, liveLocation }) {
   const width = 800
   const mapHeight = 365
-  const points = logisticsStops.map((stop) => ({
+  const latitudes = stops.map((stop) => stop.position.lat)
+  const longitudes = stops.map((stop) => stop.position.lng)
+  const minLat = Math.min(...latitudes)
+  const maxLat = Math.max(...latitudes)
+  const minLng = Math.min(...longitudes)
+  const maxLng = Math.max(...longitudes)
+  const latRange = Math.max(maxLat - minLat, 0.1)
+  const lngRange = Math.max(maxLng - minLng, 0.1)
+  const points = stops.map((stop) => ({
     stop,
-    x: 55 + ((stop.position.lng - 77) / 1.25) * 690,
-    y: 42 + ((13.5 - stop.position.lat) / 0.6) * 285,
+    x: 55 + ((stop.position.lng - minLng) / lngRange) * 690,
+    y: 42 + ((maxLat - stop.position.lat) / latRange) * 285,
   }))
   const route = points.map(({ x, y }) => `${x},${y}`).join(' ')
   const position = Math.min(points.length - 2, Math.floor((trackingProgress / 100) * (points.length - 1)))
@@ -227,6 +261,10 @@ function Fallback({ height, reason, selectedStopId, onSelectStop, trackingProgre
     x: points[position].x + (points[position + 1].x - points[position].x) * progress,
     y: points[position].y + (points[position + 1].y - points[position].y) * progress,
   }
+  const livePoint = liveLocation ? {
+    x: 55 + ((liveLocation.longitude - minLng) / lngRange) * 690,
+    y: 42 + ((maxLat - liveLocation.latitude) / latRange) * 285,
+  } : null
 
   return <div className="relative overflow-hidden rounded-xl border border-ink-100 bg-[#edf4e9]" style={{ height }}>
     <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-start justify-between gap-2 p-3">
@@ -246,28 +284,21 @@ function Fallback({ height, reason, selectedStopId, onSelectStop, trackingProgre
       {points.map(({ stop, x, y }) => {
         const selected = selectedStopId === stop.id
         const fill = stop.type === 'pickup' ? '#c96a3a' : '#1c5834'
-        const labels = {
-          kolar: { name: 'Kolar FPO', dx: -16, dy: -16, anchor: 'end' },
-          chikkaballapur: { name: 'Chikkaballapur', dx: 0, dy: 35, anchor: 'middle' },
-          tumakuru: { name: 'Tumakuru FPO', dx: -4, dy: -18, anchor: 'middle' },
-          north: { name: 'North buyer', dx: -17, dy: -19, anchor: 'end' },
-          central: { name: 'Central buyer', dx: -18, dy: 34, anchor: 'end' },
-          east: { name: 'East buyer', dx: 20, dy: 27, anchor: 'start' },
-        }
-        const label = labels[stop.id]
-        const labelX = x + label.dx
-        const labelY = y + label.dy
+        const labelX = x + (stop.type === 'pickup' ? -12 : 16)
+        const labelY = y - 18
+        const labelAnchor = stop.type === 'pickup' ? 'end' : 'start'
         return <g key={stop.id} role="button" tabIndex="0" aria-label={`Stop ${stop.sequence}: ${stop.type}, ${stop.name}, ${stop.eta}`} onClick={() => onSelectStop?.(stop.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectStop?.(stop.id) } }} className="route-stop cursor-pointer focus:outline-none">
           <title>{`Stop ${stop.sequence} · ${stop.name} · ${stop.eta}`}</title>
           {selected && <circle cx={x} cy={y} r="23" fill={fill} opacity=".16" />}
           <circle cx={x} cy={y} r="15" fill="white" />
           <circle cx={x} cy={y} r="12" fill={fill} stroke={selected ? '#123420' : '#fff'} strokeWidth={selected ? 3 : 1.5} />
           <text x={x} y={y + 4} textAnchor="middle" fill="white" fontSize="10" fontWeight="700">{stop.sequence}</text>
-          <text x={labelX} y={labelY} textAnchor={label.anchor} fill="#1b211d" fontSize="11" fontWeight="600" paintOrder="stroke" stroke="white" strokeWidth="4" strokeLinejoin="round">{label.name}</text>
-          <text x={labelX} y={labelY + 13} textAnchor={label.anchor} fill="#6b756e" fontSize="9" paintOrder="stroke" stroke="white" strokeWidth="3" strokeLinejoin="round">{stop.eta}</text>
+          <text x={labelX} y={labelY} textAnchor={labelAnchor} fill="#1b211d" fontSize="11" fontWeight="600" paintOrder="stroke" stroke="white" strokeWidth="4" strokeLinejoin="round">{stop.name}</text>
+          <text x={labelX} y={labelY + 13} textAnchor={labelAnchor} fill="#6b756e" fontSize="9" paintOrder="stroke" strokeWidth="3" strokeLinejoin="round">{stop.eta || 'ETA pending'}</text>
         </g>
       })}
       <g transform={`translate(${truck.x} ${truck.y})`} aria-hidden="true"><circle r="16" fill="white" stroke="#16462a" strokeWidth="2" /><text x="0" y="6" textAnchor="middle" fontSize="16">🚚</text></g>
+      {livePoint && <g transform={`translate(${livePoint.x} ${livePoint.y})`} aria-label="Live GPS position"><circle r="16" fill="white" stroke="#1d4ed8" strokeWidth="2" /><text x="0" y="6" textAnchor="middle" fontSize="16">📍</text></g>}
       <g transform="translate(548 322)"><rect width="234" height="29" rx="8" fill="white" opacity=".94" /><circle cx="17" cy="14.5" r="5" fill="#c96a3a" /><text x="28" y="18" fill="#3c453e" fontSize="10">FPO pickup</text><circle cx="112" cy="14.5" r="5" fill="#1c5834" /><text x="123" y="18" fill="#3c453e" fontSize="10">Buyer delivery</text></g>
     </svg>
   </div>

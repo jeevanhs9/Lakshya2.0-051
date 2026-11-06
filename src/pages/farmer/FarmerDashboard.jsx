@@ -9,11 +9,13 @@ import Button from '../../components/ui/Button'
 import { formatDate, formatINR } from '../../utils/format'
 import { farmerForecast, farmerPriceSeries, nearbyMarketPrices } from '../../data/farmerDashboard'
 import { demandTone } from '../../utils/demand'
+import { useTranslation } from 'react-i18next'
 
 export default function FarmerDashboard() {
   const { user, listings, orders } = useApp()
   const navigate = useNavigate()
   const [crop, setCrop] = useState('Tomato')
+  const { t } = useTranslation()
 
   const myProducts = listings.filter((p) => p.farmerId === user.id)
   const myOrders = orders.filter((o) => o.farmerId === user.id)
@@ -39,59 +41,59 @@ export default function FarmerDashboard() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="inline-flex h-6 items-center rounded-full bg-leaf-400/20 px-2.5 text-[10px] font-bold uppercase tracking-wider text-leaf-300 ring-1 ring-inset ring-leaf-400/30">
-              Farmer Workspace
+              {t('dashboard.workspace')}
             </span>
           </div>
           <h2 className="font-display text-2xl lg:text-3xl font-bold text-white tracking-tight">
-            Good morning, {user.name.split(' ')[0]}
+            {t('dashboard.goodMorning', { name: user.name.split(' ')[0] })}
           </h2>
           <p className="mt-2 text-sm text-leaf-100/80 max-w-lg leading-relaxed">
-            Here's a clear view of your farm's sales, current inventory, and AI-driven market signals for today.
+            {t('dashboard.heroDescription')}
           </p>
         </div>
         <div className="flex gap-3 shrink-0 w-full md:w-auto">
           <Button variant="outline" className="flex-1 md:flex-none border-white/20 bg-white/10 text-white hover:bg-white/20 hover:border-white/30 backdrop-blur-sm shadow-none" onClick={() => navigate('/farmer/orders')}>
-            <ClipboardList size={16} className="mr-2" /> View Orders
+            <ClipboardList size={16} className="mr-2" /> {t('dashboard.viewOrders')}
           </Button>
           <Button className="flex-1 md:flex-none bg-leaf-400 text-forest-950 hover:bg-leaf-300 shadow-lg shadow-leaf-500/20" onClick={() => navigate('/farmer/listing/new')}>
-            <Plus size={16} className="mr-2" /> Add Listing
+            <Plus size={16} className="mr-2" /> {t('ui.addNewListing')}
           </Button>
         </div>
       </div>
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
-        <StatCard label="Total Sales Value" value={formatINR(sales)} icon={Wallet} trend={12} sub="Completed & active demo orders" />
-        <StatCard label="Active Orders" value={active.length} icon={ClipboardList} tone="amber" sub="Awaiting delivery" />
-        <StatCard label="Active Listings" value={myProducts.length} icon={Package} sub="Available on marketplace" />
-        <StatCard label="Pending Value" value={formatINR(pending)} icon={TrendingUp} tone="clay" sub="Value tied in active orders" />
+        <StatCard label={t('dashboard.totalSalesValue')} value={formatINR(sales)} icon={Wallet} trend={12} sub={t('dashboard.completedActiveOrders')} />
+        <StatCard label={t('ui.activeOrders')} value={active.length} icon={ClipboardList} tone="amber" sub={t('dashboard.awaitingDelivery')} />
+        <StatCard label={t('dashboard.activeListings')} value={myProducts.length} icon={Package} sub={t('dashboard.availableMarketplace')} />
+        <StatCard label={t('dashboard.pendingValue')} value={formatINR(pending)} icon={TrendingUp} tone="clay" sub={t('dashboard.valueActiveOrders')} />
       </div>
 
       {/* Charts & Insights Row */}
       <div className="grid xl:grid-cols-[1.1fr_1.9fr] gap-5 lg:gap-6">
-        <ForecastCard onInsights={() => navigate('/farmer/insights')} />
-        <PriceChart crop={crop} setCrop={setCrop} prices={prices} current={current} prediction={prediction} change={change} />
+        <ForecastCard t={t} onInsights={() => navigate('/farmer/insights')} />
+        <PriceChart t={t} crop={crop} setCrop={setCrop} prices={prices} current={current} prediction={prediction} change={change} />
       </div>
 
       {/* Inventory & Markets Row */}
       <div className="grid xl:grid-cols-[1.8fr_1.2fr] gap-5 lg:gap-6">
-        <ProduceCard products={myProducts} onAdd={() => navigate('/farmer/listing/new')} />
-        <MarketCard />
+        <ProduceCard t={t} products={myProducts} onAdd={() => navigate('/farmer/listing/new')} />
+        <MarketCard t={t} />
       </div>
 
       {/* Orders & Value Row */}
       <div className="grid xl:grid-cols-[2fr_1fr] gap-5 lg:gap-6 items-start">
-        <RecentOrders orders={shownOrders} onViewAll={() => navigate('/farmer/orders')} />
+        <RecentOrders t={t} orders={shownOrders} onViewAll={() => navigate('/farmer/orders')} />
         <div className="space-y-5 lg:space-y-6">
-          <HarvestValue value={stockValue} forecastValue={forecastValue} />
-          <QuickActions navigate={navigate} />
+          <HarvestValue t={t} value={stockValue} forecastValue={forecastValue} />
+          <QuickActions t={t} navigate={navigate} />
         </div>
       </div>
     </div>
   )
 }
 
-function ForecastCard({ onInsights }) {
+function ForecastCard({ t, onInsights }) {
   const f = farmerForecast
 
   return (
@@ -103,23 +105,23 @@ function ForecastCard({ onInsights }) {
         <div className="flex justify-between items-start gap-4">
           <div>
             <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-leaf-400 uppercase">
-              <Lightbulb size={12} className="text-leaf-400" /> AI Market Intel
+              <Lightbulb size={12} className="text-leaf-400" /> {t('dashboard.aiMarketIntel')}
             </p>
-            <h3 className="mt-2 font-display text-xl font-bold tracking-tight">{f.crop} Forecast</h3>
+            <h3 className="mt-2 font-display text-xl font-bold tracking-tight">{t('dashboard.cropForecast', { crop: t(`dashboard.crops.${f.crop.toLowerCase()}`) })}</h3>
           </div>
           <Badge tone="high" className="shrink-0 font-bold px-3 py-1 bg-clay-500/20 text-clay-200 border border-clay-500/30">
-            {f.demand} Demand
+            {t('dashboard.demand', { demand: f.demand })}
           </Badge>
         </div>
 
         <div className="mt-8 grid grid-cols-3 gap-4 border-y border-white/10 py-5">
-          <MetricDark label="Current Market" value={`₹${f.current}/kg`} />
-          <MetricDark label="7-Day Target" value={`₹${f.predicted}/kg`} highlight />
-          <MetricDark label="Confidence" value={`${f.confidence}%`} />
+          <MetricDark label={t('dashboard.currentMarket')} value={`₹${f.current}/kg`} />
+          <MetricDark label={t('dashboard.sevenDayTarget')} value={`₹${f.predicted}/kg`} highlight />
+          <MetricDark label={t('dashboard.confidence')} value={`${f.confidence}%`} />
         </div>
 
         <p className="mt-5 text-sm leading-relaxed text-leaf-100/80">
-          <strong className="text-white font-semibold">Recommendation:</strong> Tomato demand is expected to rise over the next 7 days. Target listing volume is <span className="text-leaf-300 font-semibold">{f.quantity} kg</span> to maximize returns.
+          <strong className="text-white font-semibold">{t('dashboard.recommendation')}</strong> {t('dashboard.recommendationText', { crop: t(`dashboard.crops.${f.crop.toLowerCase()}`), quantity: f.quantity })}
         </p>
       </div>
 
@@ -130,13 +132,13 @@ function ForecastCard({ onInsights }) {
             <span className="w-2 h-2 rounded-full bg-leaf-400/50" />
             <span className="w-2 h-2 rounded-full bg-leaf-400/20" />
           </div>
-          <span className="text-xs font-medium text-leaf-300/80">+{f.change}% expected change</span>
+          <span className="text-xs font-medium text-leaf-300/80">{t('dashboard.expectedChange', { change: f.change })}</span>
         </div>
         <button
           onClick={onInsights}
           className="text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
         >
-          View Full Report <ChevronRight size={14} />
+          {t('dashboard.viewFullReport')} <ChevronRight size={14} />
         </button>
       </div>
     </div>
@@ -152,13 +154,13 @@ function MetricDark({ label, value, highlight }) {
   )
 }
 
-function PriceChart({ crop, setCrop, prices, current, prediction, change }) {
+function PriceChart({ t, crop, setCrop, prices, current, prediction, change }) {
   return (
     <div className="card p-6 flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">Market Price Trend</h3>
-          <p className="text-xs font-medium text-ink-500 mt-1">7-day historical + 1-day AI prediction</p>
+          <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">{t('dashboard.marketPriceTrend')}</h3>
+          <p className="text-xs font-medium text-ink-500 mt-1">{t('dashboard.priceTrendDescription')}</p>
         </div>
         <div className="flex gap-1 rounded-xl bg-sand-100 p-1 border border-ink-100/50 shrink-0 self-start">
           {Object.keys(farmerPriceSeries).map((name) => (
@@ -171,7 +173,7 @@ function PriceChart({ crop, setCrop, prices, current, prediction, change }) {
                   : 'text-ink-500 hover:text-ink-900 hover:bg-ink-100/50'
               }`}
             >
-              {name}
+              {t(`dashboard.crops.${name.toLowerCase().replace(' ', '')}`)}
             </button>
           ))}
         </div>
@@ -181,14 +183,14 @@ function PriceChart({ crop, setCrop, prices, current, prediction, change }) {
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-8 bg-ink-200 rounded-full" />
           <div>
-            <p className="text-[11px] font-medium text-ink-500 uppercase tracking-wide">Current Price</p>
+            <p className="text-[11px] font-medium text-ink-500 uppercase tracking-wide">{t('ui.currentPrice')}</p>
             <p className="font-display font-bold text-lg text-ink-900 leading-none mt-1">₹{current}<span className="text-xs font-medium text-ink-500 ml-1">/kg</span></p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-8 bg-forest-500 rounded-full" />
           <div>
-            <p className="text-[11px] font-medium text-ink-500 uppercase tracking-wide">Predicted Price</p>
+            <p className="text-[11px] font-medium text-ink-500 uppercase tracking-wide">{t('ui.predictedPrice')}</p>
             <p className="font-display font-bold text-lg text-forest-700 leading-none mt-1">₹{prediction}<span className="text-xs font-medium text-ink-500 ml-1">/kg</span></p>
           </div>
         </div>
@@ -225,7 +227,7 @@ function PriceChart({ crop, setCrop, prices, current, prediction, change }) {
               contentStyle={{ borderRadius: '12px', border: '1px solid #ecefeb', boxShadow: '0 4px 20px -4px rgba(13,36,23,0.1)', padding: '12px', fontWeight: 600, fontSize: '13px' }}
               itemStyle={{ color: '#1c5834' }}
               labelStyle={{ color: '#6b756e', fontSize: '11px', textTransform: 'uppercase', marginBottom: '4px' }}
-              formatter={(value) => [`₹${value}/kg`, 'Price']}
+              formatter={(value) => [`₹${value}/kg`, t('ui.price')]}
             />
             <ReferenceLine y={current} stroke="#d8ddd8" strokeDasharray="3 3" />
             <Area
@@ -243,13 +245,13 @@ function PriceChart({ crop, setCrop, prices, current, prediction, change }) {
   )
 }
 
-function ProduceCard({ products, onAdd }) {
+function ProduceCard({ t, products, onAdd }) {
   return (
     <div className="card flex flex-col h-full overflow-hidden">
       <div className="p-5 md:p-6 border-b border-ink-100 flex items-center justify-between bg-white">
         <div>
-          <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">Active Inventory</h3>
-          <p className="text-xs font-medium text-ink-500 mt-1">Listed produce currently available for buyers</p>
+          <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">{t('dashboard.activeInventory')}</h3>
+          <p className="text-xs font-medium text-ink-500 mt-1">{t('dashboard.inventoryDescription')}</p>
         </div>
         <div className="h-10 w-10 rounded-full bg-sand-100 text-forest-700 flex items-center justify-center border border-ink-100">
           <Package size={20} />
@@ -280,7 +282,7 @@ function ProduceCard({ products, onAdd }) {
 
                   <div className="mt-4 pt-4 border-t border-ink-100">
                     <div className="flex justify-between text-xs font-medium mb-2">
-                      <span className="text-ink-500">Available Stock</span>
+                      <span className="text-ink-500">{t('ui.availableStock')}</span>
                       <span className="text-ink-900">{p.quantity.toLocaleString('en-IN')} {p.unit}</span>
                     </div>
                     <div className="h-1.5 w-full bg-sand-100 rounded-full overflow-hidden">
@@ -296,10 +298,10 @@ function ProduceCard({ products, onAdd }) {
             <div className="h-12 w-12 rounded-full bg-sand-100 text-ink-400 flex items-center justify-center mb-4">
               <Package size={24} />
             </div>
-            <p className="text-sm font-bold text-ink-900">No produce listed yet</p>
-            <p className="mt-1.5 text-xs text-ink-500 max-w-[200px] leading-relaxed">Add a harvest listing to reach buyers and create a stock record.</p>
+            <p className="text-sm font-bold text-ink-900">{t('dashboard.noProduce')}</p>
+            <p className="mt-1.5 text-xs text-ink-500 max-w-[200px] leading-relaxed">{t('dashboard.noProduceDescription')}</p>
             <Button size="sm" className="mt-5" onClick={onAdd}>
-              <Plus size={16} className="mr-1.5" /> Create first listing
+              <Plus size={16} className="mr-1.5" /> {t('dashboard.createFirstListing')}
             </Button>
           </div>
         )}
@@ -308,12 +310,12 @@ function ProduceCard({ products, onAdd }) {
   )
 }
 
-function MarketCard() {
+function MarketCard({ t }) {
   return (
     <div className="card flex flex-col h-full overflow-hidden">
       <div className="p-5 md:p-6 border-b border-ink-100 bg-white">
-        <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">Local Market Rates</h3>
-        <p className="text-xs font-medium text-ink-500 mt-1">Today's wholesale baseline (₹/kg)</p>
+        <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">{t('dashboard.localMarketRates')}</h3>
+        <p className="text-xs font-medium text-ink-500 mt-1">{t('dashboard.wholesaleBaseline')}</p>
       </div>
 
       <div className="p-5 md:p-6 flex-1 space-y-3 bg-white">
@@ -329,16 +331,16 @@ function MarketCard() {
             <div className="flex items-center justify-between mb-2">
               <span className="font-bold text-sm text-ink-900 flex items-center gap-2">
                 {m.market}
-                {m.reference && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-forest-600 text-white">Reference</span>}
+                {m.reference && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-forest-600 text-white">{t('dashboard.reference')}</span>}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2">
               <div className="bg-white rounded-lg px-2.5 py-1.5 border border-ink-100/50">
-                <span className="block text-[10px] font-bold text-ink-500 uppercase">Tomato</span>
+                <span className="block text-[10px] font-bold text-ink-500 uppercase">{t('dashboard.crops.tomato')}</span>
                 <span className="font-display font-bold text-ink-900 text-sm mt-0.5">₹{m.tomato}</span>
               </div>
               <div className="bg-white rounded-lg px-2.5 py-1.5 border border-ink-100/50">
-                <span className="block text-[10px] font-bold text-ink-500 uppercase">Chilli</span>
+                <span className="block text-[10px] font-bold text-ink-500 uppercase">{t('dashboard.crops.chilli')}</span>
                 <span className="font-display font-bold text-ink-900 text-sm mt-0.5">₹{m.chilli}</span>
               </div>
             </div>
@@ -349,16 +351,16 @@ function MarketCard() {
   )
 }
 
-function RecentOrders({ orders, onViewAll }) {
+function RecentOrders({ t, orders, onViewAll }) {
   return (
     <div className="card overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-5 md:p-6 border-b border-ink-100 bg-white">
         <div>
-          <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">Recent Orders</h3>
-          <p className="text-xs font-medium text-ink-500 mt-1">Latest demand arriving from buyers</p>
+          <h3 className="font-display text-lg font-bold text-ink-900 tracking-tight">{t('ui.recentOrders')}</h3>
+          <p className="text-xs font-medium text-ink-500 mt-1">{t('dashboard.latestDemand')}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={onViewAll} className="hidden sm:flex text-forest-700">
-          View all <ChevronRight size={16} className="ml-1" />
+          {t('dashboard.viewAll')} <ChevronRight size={16} className="ml-1" />
         </Button>
       </div>
 
@@ -367,12 +369,9 @@ function RecentOrders({ orders, onViewAll }) {
           <table className="w-full text-sm text-left">
             <thead className="bg-sand-50/80 border-b border-ink-100 text-xs text-ink-500 uppercase tracking-widest font-bold">
               <tr>
-                <th className="px-6 py-4 whitespace-nowrap">Order ID</th>
-                <th className="px-6 py-4">Buyer</th>
-                <th className="px-6 py-4">Items</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4 whitespace-nowrap">{t('ui.orderId')}</th>
+                <th className="px-6 py-4">{t('ui.buyer')}</th><th className="px-6 py-4">{t('dashboard.items')}</th>
+                <th className="px-6 py-4">{t('dashboard.amount')}</th><th className="px-6 py-4">{t('ui.status')}</th><th className="px-6 py-4">{t('ui.date')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -401,21 +400,21 @@ function RecentOrders({ orders, onViewAll }) {
           <div className="h-12 w-12 rounded-full bg-white border border-ink-100 flex items-center justify-center mb-3">
             <ClipboardList size={20} className="text-ink-300" />
           </div>
-          <p className="text-sm font-bold text-ink-900">No orders yet</p>
-          <p className="text-xs font-medium text-ink-500 mt-1 max-w-[250px]">New buyer orders for your listings will automatically appear here.</p>
+          <p className="text-sm font-bold text-ink-900">{t('ui.noOrdersYet')}</p>
+          <p className="text-xs font-medium text-ink-500 mt-1 max-w-[250px]">{t('dashboard.noOrdersDescription')}</p>
         </div>
       )}
 
       <div className="sm:hidden p-4 border-t border-ink-100 bg-sand-50">
         <Button variant="outline" size="sm" className="w-full" onClick={onViewAll}>
-          View all orders
+          {t('ui.viewAllOrders')}
         </Button>
       </div>
     </div>
   )
 }
 
-function HarvestValue({ value, forecastValue }) {
+function HarvestValue({ t, value, forecastValue }) {
   const difference = forecastValue - value;
   const isPositive = difference > 0;
 
@@ -428,11 +427,11 @@ function HarvestValue({ value, forecastValue }) {
       <div className="p-6 md:p-8 relative z-10">
         <div className="flex items-center gap-2 mb-4">
           <span className="w-6 h-1 rounded-full bg-forest-600" />
-          <p className="text-xs font-bold tracking-widest text-forest-700 uppercase">Inventory Value</p>
+          <p className="text-xs font-bold tracking-widest text-forest-700 uppercase">{t('dashboard.inventoryValue')}</p>
         </div>
 
-        <h3 className="font-display font-bold text-ink-900 mb-1">Current Stock Valuation</h3>
-        <p className="text-sm font-medium text-ink-500 mb-6 focus-ring">Based on your listed asking prices</p>
+        <h3 className="font-display font-bold text-ink-900 mb-1">{t('dashboard.currentStockValuation')}</h3>
+        <p className="text-sm font-medium text-ink-500 mb-6 focus-ring">{t('dashboard.basedOnAskingPrices')}</p>
 
         <p className="font-display text-4xl md:text-5xl font-bold text-ink-900 tracking-tight leading-none mb-6">
           {formatINR(value)}
@@ -441,12 +440,12 @@ function HarvestValue({ value, forecastValue }) {
         <div className="pt-5 border-t border-ink-100">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-500 mb-1">AI Optimized Potential</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-500 mb-1">{t('dashboard.aiOptimizedPotential')}</p>
               <p className="font-display font-bold text-lg text-forest-700">{formatINR(forecastValue)}</p>
             </div>
             {difference !== 0 && (
               <Badge tone={isPositive ? 'success' : 'clay'} className="shadow-sm">
-                {isPositive ? `+${formatINR(difference)} optimal` : `${formatINR(difference)}`}
+                {isPositive ? t('dashboard.optimalValue', { value: formatINR(difference) }) : formatINR(difference)}
               </Badge>
             )}
           </div>
@@ -456,12 +455,12 @@ function HarvestValue({ value, forecastValue }) {
   )
 }
 
-function QuickActions({ navigate }) {
+function QuickActions({ t, navigate }) {
   return (
     <div className="card p-6 md:p-8 bg-gradient-to-b from-white to-sand-50">
       <div className="flex items-center gap-2 mb-5">
         <span className="w-6 h-1 rounded-full bg-amber-500" />
-        <h3 className="font-display text-base font-bold text-ink-900 tracking-tight uppercase">Quick Actions</h3>
+        <h3 className="font-display text-base font-bold text-ink-900 tracking-tight uppercase">{t('ui.quickActions')}</h3>
       </div>
 
       <div className="grid gap-3">
@@ -471,7 +470,7 @@ function QuickActions({ navigate }) {
           className="justify-start py-3.5 shadow-sm border border-leaf-200"
         >
           <Plus size={18} className="mr-3 text-forest-600" />
-          <span className="font-bold">Add New Component</span>
+          <span className="font-bold">{t('ui.addNewListing')}</span>
         </Button>
         <Button
           variant="outline"
@@ -479,7 +478,7 @@ function QuickActions({ navigate }) {
           className="justify-start py-3.5"
         >
           <ClipboardList size={18} className="mr-3 text-ink-400" />
-          <span className="font-bold">Review Pipeline</span>
+          <span className="font-bold">{t('dashboard.reviewPipeline')}</span>
         </Button>
         <Button
           variant="outline"
@@ -487,7 +486,7 @@ function QuickActions({ navigate }) {
           className="justify-start py-3.5"
         >
           <BarChart3 size={18} className="mr-3 text-ink-400" />
-          <span className="font-bold">AI Market Scenarios</span>
+          <span className="font-bold">{t('dashboard.aiMarketScenarios')}</span>
         </Button>
       </div>
     </div>

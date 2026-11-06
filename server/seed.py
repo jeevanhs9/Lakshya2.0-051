@@ -6,19 +6,77 @@ Populates SQLite database with realistic agricultural records for Karnataka dist
 
 import os
 import json
-from sqlalchemy import create_engine
+import sys
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 from models import (
     Base, User, ProduceListing, Order, BuyerOffer, Shipment, ShipmentStop,
-    DisruptionEvent, AuditLog, Notification
+    ShipmentItem, DisruptionEvent, AuditLog, Notification
 )
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'farmlink.db')
-engine = create_engine(f'sqlite:///{DB_PATH}', connect_args={'check_same_thread': False})
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+DATABASE_URL = os.environ.get('FARMLINK_DATABASE_URL') or f'sqlite:///{DB_PATH}'
+engine_options = {'pool_pre_ping': True}
+if DATABASE_URL.startswith('sqlite:'):
+    engine_options['connect_args'] = {'check_same_thread': False, 'timeout': 30}
+engine = create_engine(DATABASE_URL, **engine_options)
 Session = sessionmaker(bind=engine)
 
-def seed_database():
-    Base.metadata.drop_all(engine)
+
+def metro_demo_buyer():
+    return User(
+        id='b8',
+        name='Metro Wholesale Mandi Traders',
+        email='procurement@metrowholesale.in',
+        role='buyer',
+        org_name='Metro Wholesale Mandi Traders',
+        location='Yeshwanthpur APMC Yard, Bengaluru',
+        phone='+91 80 1122 3344',
+    )
+
+
+def repair_demo_users():
+    """Add demo buyers referenced by existing seeded offers without resetting data."""
+    existing_tables = set(inspect(engine).get_table_names())
+    if not {'users', 'buyer_offers'}.issubset(existing_tables):
+        raise RuntimeError('Initialize the FarmLink database before applying demo data repairs.')
+
+    session = Session()
+    try:
+        has_offer_for_b8 = session.query(BuyerOffer.id).filter(BuyerOffer.buyer_id == 'b8').first()
+        if not has_offer_for_b8:
+            print('No seeded offers reference buyer b8; no data changes were needed.')
+            return
+
+        existing_user = session.query(User).filter(User.id == 'b8').first()
+        if existing_user:
+            if existing_user.role != 'buyer':
+                raise RuntimeError('User ID b8 is already assigned to a non-buyer account.')
+            print('Demo buyer b8 is already present; no data changes were needed.')
+            return
+
+        email_owner = session.query(User).filter(User.email == 'procurement@metrowholesale.in').first()
+        if email_owner:
+            raise RuntimeError('The Metro demo buyer email is already assigned to another user ID.')
+
+        session.add(metro_demo_buyer())
+        session.commit()
+        print('Added missing demo buyer b8. Existing listings, orders, offers, and other data were preserved.')
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def seed_database(reset=False):
+    existing_tables = inspect(engine).get_table_names()
+    if existing_tables and not reset:
+        raise RuntimeError('Database already has tables. Pass --reset only if you intend to replace its data.')
+    if reset:
+        Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     session = Session()
 
@@ -74,6 +132,7 @@ def seed_database():
             phone='+91 80 3344 5566',
             avatar='https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop',
         ),
+        metro_demo_buyer(),
         User(
             id='l1',
             name='Suresh Patil',
@@ -327,7 +386,7 @@ def seed_database():
             platform_fee=88.0,
             total=4840.0,
             payment_method='Net Banking',
-            stage='Picked Up',
+            stage='In Transit',
             placed_on='2026-10-17',
             eta='2026-10-21',
             delivery_location='Indiranagar, Bengaluru East',
@@ -348,7 +407,7 @@ def seed_database():
             platform_fee=200.0,
             total=11000.0,
             payment_method='Bank Transfer',
-            stage='Confirmed',
+            stage='In Transit',
             placed_on='2026-10-18',
             eta='2026-10-22',
             delivery_location='Hebbal, Bengaluru North',
@@ -369,7 +428,7 @@ def seed_database():
             platform_fee=14.0,
             total=792.0,
             payment_method='UPI',
-            stage='Confirmed',
+            stage='In Transit',
             placed_on='2026-10-19',
             eta='2026-10-21',
             delivery_location='Vasanth Nagar, Bengaluru Central',
@@ -460,7 +519,7 @@ def seed_database():
         vehicle_id='KA-04-TR-1029',
         vehicle_name='Tata 407 (3.5T Reefer)',
         vehicle_capacity_kg=3500.0,
-        current_payload_kg=1450.0,
+        current_payload_kg=860.0,
         status='In Transit',
         origin='Kolar FPO Hub',
         destination='Bengaluru Urban Delivery Corridor',
@@ -470,11 +529,28 @@ def seed_database():
         optimized_cost=3450.0,
         estimated_savings=1350.0,
         savings_pct=28.1,
-        pooled_orders_count=6,
-        explanation='Consolidates 6 small farmer orders across Kolar, Chikkaballapur, and Tumakuru into a single 3.5T vehicle run serving 3 delivery nodes in Bengaluru.',
+        pooled_orders_count=4,
+        explanation='Consolidates 4 packed buyer orders across Kolar, Chikkaballapur, and Tumakuru into a single 3.5T vehicle run serving 3 delivery nodes in Bengaluru.',
     )
     session.add(shipment)
     session.flush()
+
+    seeded_shipment_orders = session.query(Order).filter(
+        Order.shipment_id == shipment.id,
+        Order.stage != 'Cancelled',
+    ).all()
+    session.add_all([
+        ShipmentItem(
+            id=f'SI-{order.id}',
+            shipment_id=shipment.id,
+            listing_id=order.listing_id,
+            order_id=order.id,
+            quantity=order.quantity,
+            unit=order.unit,
+            status='in_transit',
+        )
+        for order in seeded_shipment_orders
+    ])
 
     stops = [
         ShipmentStop(
@@ -486,7 +562,7 @@ def seed_database():
             location='Kolar, Karnataka',
             lat=13.1358,
             lng=78.1326,
-            order_ids_json=json.dumps(['ORD-1042', 'FL-1021']),
+            order_ids_json=json.dumps(['ORD-1042', 'ORD-1039']),
             eta='08:15 AM',
             status='Picked Up',
         ),
@@ -597,7 +673,7 @@ def seed_database():
             user_id='l1',
             role='logistics',
             title='Consolidated Run SHP-101 In Transit',
-            message='Vehicle KA-04-TR-1029 has completed Kolar, Chikkaballapur, and Tumakuru pickups (1,450 kg loaded). Next stop: Hebbal.',
+            message='Vehicle KA-04-TR-1029 has completed Kolar, Chikkaballapur, and Tumakuru pickups (860 kg loaded). Next stop: Hebbal.',
             tone='success',
             link='/logistics',
         ),
@@ -625,9 +701,20 @@ def seed_database():
     ]
     session.add_all(logs)
 
-    session.commit()
-    session.close()
-    print("FarmLink AI database seeded successfully at:", DB_PATH)
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+    print("FarmLink AI database seeded successfully.")
 
 if __name__ == '__main__':
-    seed_database()
+    arguments = sys.argv[1:]
+    if arguments == ['--repair-demo-users']:
+        repair_demo_users()
+    elif arguments in ([], ['--reset']):
+        seed_database(reset='--reset' in arguments)
+    else:
+        raise SystemExit('Usage: python seed.py [--reset | --repair-demo-users]')

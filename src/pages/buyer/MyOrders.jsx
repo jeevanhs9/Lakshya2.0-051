@@ -5,19 +5,21 @@ import OrderTimeline from '../../components/orders/OrderTimeline'
 import Modal from '../../components/ui/Modal'
 import EmptyState from '../../components/ui/EmptyState'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
 import { ClipboardList } from 'lucide-react'
 import { formatDate, formatINR } from '../../utils/format'
 
 const STAGE_TONE = {
   'Order Placed': 'info', Confirmed: 'medium', Packed: 'medium',
-  'Picked Up': 'medium', 'In Transit': 'medium', Delivered: 'success',
+  'Picked Up': 'medium', 'In Transit': 'medium', Delivered: 'success', Cancelled: 'error',
 }
 
 export default function MyOrders() {
-  const { user, orders } = useApp()
+  const { user, orders, cancelOrder } = useApp()
   const [selected, setSelected] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
   const myOrders = orders.filter((o) => o.buyerId === user.id)
-  const active = myOrders.filter((o) => o.stage !== 'Delivered')
+  const active = myOrders.filter((o) => !['Delivered', 'Cancelled'].includes(o.stage))
 
   return (
     <div className="space-y-6">
@@ -70,6 +72,28 @@ export default function MyOrders() {
               </div>
               <OrderTimeline currentStage={selected.stage} />
             </div>
+
+            {['Order Placed', 'Confirmed', 'Packed'].includes(selected.stage) && (
+              <div className="flex items-center justify-between gap-4 border-t border-ink-100 pt-4">
+                <p className="text-xs text-ink-500">Cancellation releases reserved produce and opens a recovery record for the farmer.</p>
+                <Button
+                  variant="outline"
+                  loading={cancelling}
+                  onClick={async () => {
+                    if (cancelling) return
+                    setCancelling(true)
+                    try {
+                      const response = await cancelOrder(selected.id)
+                      if (response?.order) setSelected(response.order)
+                    } finally {
+                      setCancelling(false)
+                    }
+                  }}
+                >
+                  Cancel Order
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Modal>

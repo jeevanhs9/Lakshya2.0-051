@@ -7,7 +7,8 @@ Buyer Offers, Disruptions, Audit Logs, and Notifications.
 from datetime import datetime, timezone
 import json
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey, create_engine
+    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey,
+    UniqueConstraint, CheckConstraint, create_engine
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
@@ -192,7 +193,7 @@ class Shipment(Base):
     vehicle_name = Column(String(100), nullable=False, default='Tata 407 (3.5T Reefer)')
     vehicle_capacity_kg = Column(Float, nullable=False, default=3500.0)
     current_payload_kg = Column(Float, nullable=False, default=0.0)
-    status = Column(String(50), default='Confirmed') # Draft, Confirmed, Scheduled, In Transit, Delivered, Disrupted
+    status = Column(String(50), default='Confirmed') # Draft, Confirmed, Scheduled, In Transit, Delivered, Disrupted, Cancelled
     origin = Column(String(150), nullable=False)
     destination = Column(String(150), nullable=False)
     planned_distance_km = Column(Float, default=128.0)
@@ -206,6 +207,8 @@ class Shipment(Base):
     created_at = Column(DateTime, default=utcnow)
 
     stops = relationship('ShipmentStop', back_populates='shipment', cascade='all, delete-orphan', order_by='ShipmentStop.sequence')
+    items = relationship('ShipmentItem', back_populates='shipment', cascade='all, delete-orphan', order_by='ShipmentItem.id')
+    location_events = relationship('ShipmentLocation', back_populates='shipment', cascade='all, delete-orphan')
 
     def to_dict(self):
         return {
@@ -227,6 +230,7 @@ class Shipment(Base):
             'pooledOrdersCount': self.pooled_orders_count,
             'explanation': self.explanation,
             'stops': [s.to_dict() for s in self.stops] if self.stops else [],
+            'items': [item.to_dict() for item in self.items] if self.items else [],
             'createdAt': self.created_at.strftime('%Y-%m-%d') if self.created_at else None,
         }
 
@@ -264,6 +268,74 @@ class ShipmentStop(Base):
             'orderIds': order_ids,
             'eta': self.eta,
             'status': self.status,
+        }
+
+
+class ShipmentItem(Base):
+    """A reserved produce lot or an order carried by a shipment."""
+    __tablename__ = 'shipment_items'
+    __table_args__ = (
+        UniqueConstraint('shipment_id', 'order_id', name='uq_shipment_order_item'),
+        CheckConstraint('listing_id IS NOT NULL OR order_id IS NOT NULL', name='ck_shipment_item_source'),
+        CheckConstraint('quantity > 0', name='ck_shipment_item_quantity_positive'),
+    )
+
+    id = Column(String(50), primary_key=True)
+    shipment_id = Column(String(50), ForeignKey('shipments.id', ondelete='CASCADE'), nullable=False, index=True)
+    listing_id = Column(String(50), ForeignKey('produce_listings.id'), nullable=True, index=True)
+    order_id = Column(String(50), ForeignKey('orders.id'), nullable=True)
+    quantity = Column(Float, nullable=False)
+    unit = Column(String(20), nullable=False, default='kg')
+    status = Column(String(30), nullable=False, default='reserved')
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    shipment = relationship('Shipment', back_populates='items')
+    listing = relationship('ProduceListing')
+    order = relationship('Order')
+
+    def to_dict(self):
+        order = self.order
+        listing = self.listing
+        return {
+            'id': self.id,
+            'shipmentId': self.shipment_id,
+            'listingId': self.listing_id,
+            'orderId': self.order_id,
+            'product': order.product_name if order else (listing.name if listing else None),
+            'buyer': order.buyer_name if order else None,
+            'farmerId': order.farmer_id if order else (listing.farmer_id if listing else None),
+            'deliveryLocation': order.delivery_location if order else None,
+            'quantity': self.quantity,
+            'unit': self.unit,
+            'status': self.status,
+        }
+
+
+class ShipmentLocation(Base):
+    """A GPS position submitted by a delivery device for a shipment."""
+    __tablename__ = 'shipment_locations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    shipment_id = Column(String(50), ForeignKey('shipments.id', ondelete='CASCADE'), nullable=False, index=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy_meters = Column(Float, nullable=True)
+    source = Column(String(30), nullable=False, default='browser_gps')
+    recorded_at = Column(DateTime, nullable=False, default=utcnow)
+    received_at = Column(DateTime, nullable=False, default=utcnow)
+
+    shipment = relationship('Shipment', back_populates='location_events')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'shipmentId': self.shipment_id,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'accuracyMeters': self.accuracy_meters,
+            'source': self.source,
+            'recordedAt': self.recorded_at.isoformat() if self.recorded_at else None,
+            'receivedAt': self.received_at.isoformat() if self.received_at else None,
         }
 
 
